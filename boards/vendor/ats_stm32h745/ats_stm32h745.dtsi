@@ -1,0 +1,117 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * 板级公共硬件描述（M7/M4 两个核共享）。
+ *
+ * 针对 STM32H745IIT6 的 pinctrl include 选择建议：
+ *
+ * - 一般不需要在创建板卡时“从 0 重新设计”一整套 pinctrl。
+ *   Zephyr 的 STM32 pinctrl 定义主要来自 STM32 HAL/SoC 的 DTS include
+ *  （由 Zephyr/hal_stm32 提供）。
+ *
+ * - 你必须做的是选对 pinctrl include 文件，使其匹配你使用的 STM32 系列与封装变体：
+ *   不同封装会暴露不同的引脚集合以及复用功能映射。
+ *
+ * - 从 Zephyr 的参考板卡可以看出：
+ *   - Nucleo H745ZI-Q 使用 "zitx" pinctrl include（不同封装）。
+ *   - STM32H745I Disco 使用 "stm32h745xihx-pinctrl.dtsi"。
+ *
+ * 对 STM32H745IIT6，更匹配的通常是：
+ *   <st/h7/stm32h745iitx-pinctrl.dtsi>
+ *
+ * 为什么你在本仓库里“看不到”这个文件：
+ * - 它由 hal_stm32 模块提供，实际路径是：
+ *   /home/hjp/zephyrproject/modules/hal/stm32/dts/st/h7/stm32h745iitx-pinctrl.dtsi
+ * - Zephyr 会把 module 的 DTS 根目录加入 include path，所以板级 DTS 里仍然可以用
+ *   <st/h7/...> 这种短路径形式来 include。
+ *
+ * 如果后续你发现封装并不匹配（或你走线用到的 UART 引脚在该 include 中没有定义），常见做法是：
+ * 1) 如果 Zephyr/hal_stm32 里已有更匹配的 SoC pinctrl include，就切换到那个文件；或
+ * 2) 新增一个板级 pinctrl 文件（例如 ats_stm32h745-pinctrl.dtsi），只补你需要的那几组引脚定义，
+ *    然后在这里 include。
+ *
+ * 内容组织建议：
+ * - 把板级公共内容放在这里：LED、按键、共享总线、mailbox、公共 RCC 分频等。
+ * - 把“核相关”的选择放到各自的 .dts：console、flash/sram 归属、主时钟树等。
+ */
+
+#include <st/h7/stm32h745iitx-pinctrl.dtsi>
+/*
+ * 说明：为什么要 include <zephyr/dt-bindings/.../*.h> 这一类头文件？
+ *
+ * 这类头文件是“设备树专用的常量/宏定义集合”（DT bindings），让你在 DTS/DTSI 里写配置时
+ * 可以用可读的名字，而不是直接写数字。
+ *
+ * 以本文件 include 的 input-event-codes.h 为例：
+ * - 它定义了 INPUT_KEY_0、INPUT_KEY_ENTER 等键码常量
+ * - 当你使用 `gpio-keys` 描述按键时，通常会写：
+ *
+ *     zephyr,code = <INPUT_KEY_0>;
+ *
+ * 含义是：这个按键被触发时，Zephyr 的 input 子系统会上报“键码=INPUT_KEY_0”的事件。
+ *
+ * 重要区别（容易误解的点）：
+ * - 这里的 include 发生在“设备树编译阶段”，是让 DTS 能认识这些宏。
+ * - 应用 C 代码一般不会去 include 这个 dt-bindings 头文件来“调用它”，而是通过 input
+ *   事件接口接收上报的键码。
+ *
+ * 常见问题：是不是“用到了某个外设，就必须 include 对应外设的头文件”？
+ * - 不是。
+ * - 你需要 include 的前提通常是：你在 DTS/DTSI 文本里“写到了某个宏常量/枚举值”，而该宏常量
+ *   定义在某个 dt-bindings 头文件里。此时 DTS 编译器需要看到这个宏的定义，才能把它展开为数值。
+ *
+ * 换句话说：
+ * - “启用外设/描述外设节点”本身，不一定需要 include 某个头文件
+ *   例如：`&uart7 { status = "okay"; };` 这类写法不依赖 dt-bindings 宏。
+ * - “给属性填一个宏常量”时，才通常需要 include
+ *   例如：
+ *   - GPIO 标志位：GPIO_ACTIVE_LOW、GPIO_PULL_UP 等（来自 <zephyr/dt-bindings/gpio/gpio.h>）
+ *   - I2C 速率：I2C_BITRATE_STANDARD/FAST 等（来自 <zephyr/dt-bindings/i2c/i2c.h>）
+ *   - PWM 相关：PWM_POLARITY_NORMAL 等（来自 <zephyr/dt-bindings/pwm/pwm.h>）
+ *   - STM32 时钟选择/复位宏：STM32_CLOCK(...)、STM32_RESET(...) 等
+ *     （常见于 SoC/系列 dtsi，通常它们已经在 SoC 级 dtsi 里 include 了对应 dt-bindings）
+ *
+ * 实务建议：
+ * - “在哪里用到宏，就在相应的 DTS/DTSI 里 include 对应的 dt-bindings”是最容易理解的规则。
+ * - 但很多 SoC/系列的 .dtsi 已经 include 了常用 dt-bindings（比如 GPIO/Clock/Reset），
+ *   所以板级文件未必需要重复 include；只有当你在板级文件里新增使用了某个宏且编译报未定义，
+ *   再补 include 即可（保持 include 最小化也更利于维护）。
+ *
+ * 这类 dt-bindings 头文件在 Zephyr 源码树中的位置通常是：
+ * - $ZEPHYR_BASE/include/zephyr/dt-bindings/...
+ *
+ * 你当前工作区里，这个文件的真实路径是：
+ * - /home/hjp/zephyrproject/zephyr/include/zephyr/dt-bindings/input/input-event-codes.h
+ *
+ * 如果你的板卡暂时没有 `gpio-keys` 或不使用 `zephyr,code`，这个 include 并非必须，
+ * 可以先不加；等你开始做按键输入上报时再加入即可。
+ */
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+/ {
+	/*
+	 * 上电调试小建议：
+	 * - 先保持最小化（不加 LED/传感器），只做到 console 能输出。
+	 * - 然后一个外设一个外设加，并用最小 sample 验证，避免一次加太多难排错。
+	 */
+};
+
+&rcc {
+	d1cpre = <1>;
+	hpre = <2>;
+	d1ppre = <2>;
+	d2ppre1 = <2>;
+	d2ppre2 = <2>;
+	d3ppre = <2>;
+};
+
+&pwr {
+	power-supply = "smps-direct";
+};
+
+&mailbox {
+	/* mailbox 用于双核 STM32H7 的核间通信。 */
+	status = "okay";
+};

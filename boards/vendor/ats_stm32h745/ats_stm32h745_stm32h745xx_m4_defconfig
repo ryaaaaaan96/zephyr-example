@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# M4 上电调试默认配置（板卡目标：ats_stm32h745/stm32h745xx/m4）
+#
+# 默认尽量保持 M4 精简。
+#
+# 你要求：M4 不使用串口。
+# 因此这里把串口/console 默认关闭（避免与 M7 的 UART7 console 冲突）。
+CONFIG_SERIAL=n
+CONFIG_CONSOLE=n
+CONFIG_UART_CONSOLE=n
+
+CONFIG_GPIO=y

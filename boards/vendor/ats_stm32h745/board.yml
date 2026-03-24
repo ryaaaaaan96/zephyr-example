@@ -1,0 +1,7 @@
+board:
+  name: ats_stm32h745
+  full_name: ATS STM32H745IIT6 Board
+  vendor: ats
+  socs:
+    - name: stm32h745xx
+

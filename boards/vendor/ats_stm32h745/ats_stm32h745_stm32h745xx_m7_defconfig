@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# M7 上电调试默认配置（板卡目标：ats_stm32h745/stm32h745xx/m7）
+
+# 在 Cortex-M7 上启用 MPU（内存保护单元）
+CONFIG_ARM_MPU=y
+
+# 默认启用 UART + console（console 具体使用哪个 UART 由 DTS 的 chosen 决定）
+CONFIG_SERIAL=y
+CONFIG_CONSOLE=y
+CONFIG_UART_CONSOLE=y
+
+# 一般都会用到 GPIO；后续加外设时再逐步扩展
+CONFIG_GPIO=y

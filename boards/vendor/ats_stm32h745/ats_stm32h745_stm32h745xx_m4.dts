@@ -1,0 +1,44 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+/*
+ * 说明同 M7：
+ * - 你当前 Zephyr 树里没有专门以 “IIT6” 命名的 SoC dtsi。
+ * - 这里 include <st/h7/stm32h745Xi_m4.dtsi> (Xi的意思是X是任意通配符)是为了选择 M4 核对应的 SoC 视图：
+ *   删除 cpu@0、删除 flash0/itcm/dtcm，并把 flash1 作为该核镜像使用的 flash。
+ *
+ * 如果未来你的芯片容量/bank 划分与该 SoC dtsi 不一致，再在板级 DTS 覆盖即可。
+ */
+#include <st/h7/stm32h745Xi_m4.dtsi>
+#include "ats_stm32h745.dtsi"
+
+/ {
+	model = "ATS STM32H745IIT6 board (M4)";
+	compatible = "ats,stm32h745";
+
+	/* 归属于 CM4（M4 核）的硬件资源 */
+	chosen {
+		/*
+		 * M4 通常使用 SRAM1 作为主 RAM，flash1 作为镜像 Flash。
+		 */
+		zephyr,sram = &sram1;
+		zephyr,flash = &flash1;
+	};
+};
+
+&rcc {
+	clock-frequency = <DT_FREQ_M(240)>;
+};
+
+/*
+ * 你要求：M4 不使用串口。
+ *
+ * 因此这里明确把 UART7 关掉，避免与 M7 的 console UART7 产生外设/引脚冲突。
+ * 如果你未来需要在 M4 上使用 UART7（例如业务通信），再把 status 改回 "okay"
+ * 并配置正确的 pinctrl 即可。
+ */
+&uart7 {
+	status = "disabled";
+};

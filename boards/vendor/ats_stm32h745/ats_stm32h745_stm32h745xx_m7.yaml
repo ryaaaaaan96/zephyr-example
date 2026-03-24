@@ -1,0 +1,48 @@
+# 这个文件是 Zephyr 的“板卡目标描述(元数据)”文件：
+# - 主要用于 board 发现、文档/展示、测试筛选等工具用途
+# - 不直接决定链接脚本/内存布局/外设是否启用（这些主要由 DTS/Kconfig/链接脚本决定）
+
+# identifier：该板卡 target 的唯一标识，同时也是 `west build -b ...` 使用的字符串
+identifier: ats_stm32h745/stm32h745xx/m7
+
+# name：给人看的名称（用于 `west boards`、文档、报告等展示）
+name: ATS STM32H745IIT6 (M7)
+
+# type：目标类型（常见是 mcu，用于分类/展示）
+# 常见取值（以你当前 Zephyr 源码树的 boards/*.yaml 为准）：
+# - mcu：真实硬件 MCU 板卡（大多数开发板/自定义板）
+# - qemu：QEMU 虚拟板卡
+# - sim：其他仿真平台（例如 ARM FVP、nsim 等）
+# - native：运行在宿主机上的 native/native_sim
+type: mcu
+
+# arch：CPU 架构（用于分类与测试/工具筛选）
+# 常见取值（以你当前 Zephyr 源码树的 boards/*.yaml 为准）：
+# - arm, arm64, riscv, x86, xtensa
+# - arc, mips, openrisc, rx, sparc
+# - posix（通常配合 native/native_sim）
+arch: arm
+
+# toolchain：该 target 支持/常用的工具链列表（元数据，常用于 CI/测试/展示）
+toolchain:
+  - zephyr
+  - gnuarmemb
+
+# 注意：
+# - 这里的 ram/flash 主要是元数据（给工具/测试/文档用）。
+# - 链接脚本/内存布局主要由 SoC + 板级 DTS/Kconfig 决定。
+# 建议在确认你的 MCU 具体容量后，把这些值改成真实数据，避免误导。
+
+# ram：该 target 的 RAM 容量（元数据）
+ram: 512
+
+# flash：该 target 的 Flash 容量（元数据）
+flash: 2048
+
+# supported：该 target 声称“支持”的功能标签（用于展示/测试筛选，不会自动打开驱动）
+supported:
+  - uart
+  - gpio
+
+# vendor：厂商/组织标识（用于分类/展示）
+vendor: ats

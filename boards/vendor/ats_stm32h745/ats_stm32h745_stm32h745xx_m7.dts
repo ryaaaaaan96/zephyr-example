@@ -1,0 +1,116 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+/*
+ * 说明：为什么这里 include 的是 <st/h7/stm32h745Xi_m7.dtsi>，而不是一个名字里带 IIT6 的 .dtsi？
+ *
+ * - 在你当前的 Zephyr 源码树（/home/hjp/zephyrproject/zephyr/dts/arm/st/h7/）里，
+ *   STM32H745 的 SoC 级 dtsi 只有：
+ *   - stm32h745.dtsi（双核 SoC 的公共描述）
+ *   - stm32h745Xi_m7.dtsi（面向 M7 核的裁剪/修正：删除 cpu@1、删除 flash1，并设置 flash0 size 等）
+ *   - stm32h745Xi_m4.dtsi（面向 M4 核的裁剪/修正：删除 cpu@0、删除 flash0/itcm/dtcm，并设置 flash1 size 等）
+ *
+ * - Zephyr 通常不会为每一个具体料号（如 STM32H745IIT6）单独提供 SoC dtsi，
+ *   而是按“系列/容量档/核”提供一组通用的 SoC 描述，然后由板级 DTS 去选择/覆盖。
+ *
+ * - 对 STM32H745IIT6（总 Flash 2MB，通常分成两个 1MB bank）来说，
+ *   stm32h745Xi_m7.dtsi 中的 flash0 size=1024KB 与常见 bank 划分是匹配的；
+ *   这也是 nucleo_h745zi_q / stm32h745i_disco 等参考板卡采用同样 include 逻辑的原因。
+ *
+ * 如果你将来遇到“Flash/RAM 容量不匹配”或“你的芯片 bank 划分不同”的情况：
+ * - 首选：在板级 .dts 里覆盖 flash0/flash1 的 reg size 或其它差异点
+ * - 或者：新增一个板级 SoC 变体 .dtsi（例如只做 flash size 修正），再在这里 include
+ */
+#include <st/h7/stm32h745Xi_m7.dtsi>
+#include "ats_stm32h745.dtsi"
+
+/ {
+	model = "ATS STM32H745IIT6 board (M7)";
+	compatible = "ats,stm32h745";
+
+	/* 归属于 CM7（M7 核）的硬件资源 */
+	chosen {
+		/*
+		 * Console / shell 输出设备。
+		 *
+		 * 你要求 UART7 作为 console。在 Zephyr 的 STM32 设备树中，
+		 * UART7 通常使用 label "uart7"（而不是 "usart7"）。
+		 */
+		zephyr,console = &uart7;
+		zephyr,shell-uart = &uart7;
+
+		/*
+		 * 内存归属（给 M7）：
+		 * - DTCM 仅存在于 M7 核，常用于栈、ISR 高频数据、或对延迟敏感的缓冲区。
+		 * - SRAM0 是 AXI SRAM，通常作为 M7 的主 RAM。
+		 * - flash0 是内部 Flash bank 之一，通常用于 M7 镜像。
+		 *
+		 * 对双核来说，Zephyr 参考实现常把 flash/sram 在两核之间划分：
+		 * - M7：flash0 / sram0
+		 * - M4：flash1 / sram1
+		 * 你后续如果实现了不同的内存布局，也可以再调整。
+		 */
+		zephyr,dtcm = &dtcm;
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+	};
+};
+
+&clk_lsi {
+	status = "okay";
+};
+
+&clk_hsi48 {
+	status = "okay";
+};
+
+&clk_hse {
+	/* 外部晶振/时钟输入。你要求 25MHz。 */
+	clock-frequency = <DT_FREQ_M(25)>;
+	status = "okay";
+};
+
+/*
+ * 时钟配置参考 stm32h745i_disco，作为 25MHz HSE 的合理基线。
+ * 后续请根据你的功耗/主频/外设时钟需求调整分频与倍频参数。
+ *
+ * 学习建议：
+ * - 先保证 console 稳定输出
+ * - 再调整 PLL，让 SYSCLK 与外设时钟满足需求
+ */
+&pll {
+	div-m = <5>;
+	mul-n = <192>;
+	div-p = <2>;
+	div-q = <15>;
+	div-r = <4>;
+	clocks = <&clk_hse>;
+	status = "okay";
+};
+
+&rcc {
+	/*
+	 * 选择 PLL1 作为主时钟源，并给出目标频率。
+	 * STM32 时钟驱动会据此推导各个总线时钟。
+	 */
+	clocks = <&pll>;
+	clock-frequency = <DT_FREQ_M(480)>;
+};
+
+&uart7 {
+	/*
+	 * UART7 引脚复用（pinmux）。
+	 *
+	 * 重要：
+	 * - 这组映射（TX=PF7, RX=PF6）只是一个“占位示例”。
+	 * - 请按你的原理图/PCB 走线修改为真实引脚。
+	 * - `&uart7_tx_pf7` 这类符号来自 include 的 pinctrl .dtsi。
+	 *   如果你选的引脚在 pinctrl include 里没有定义，需要在板级补充 pinctrl 定义。
+	 */
+	pinctrl-0 = <&uart7_tx_pf7 &uart7_rx_pf6>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};

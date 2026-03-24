@@ -1,0 +1,17 @@
+# ATS STM32H745 板卡配置
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# 这个文件做什么：
+# - 定义板级 Kconfig 符号：CONFIG_BOARD_ATS_STM32H745
+# - 根据你构建的“板卡目标(target)”选择正确的 SoC 变体
+#
+# 为什么需要 "select SOC_..._M7/M4"：
+# STM32H745 是双核。Zephyr 把每个核建模为不同的 SoC 变体（M7 vs M4）。
+# 对应的板卡构建目标通常是：
+# - ats_stm32h745/stm32h745xx/m7  -> 选择 SOC_STM32H745XX_M7
+# - ats_stm32h745/stm32h745xx/m4  -> 选择 SOC_STM32H745XX_M4
+
+config BOARD_ATS_STM32H745
+	select SOC_STM32H745XX_M7 if BOARD_ATS_STM32H745_STM32H745XX_M7
+	select SOC_STM32H745XX_M4 if BOARD_ATS_STM32H745_STM32H745XX_M4
