@@ -6,7 +6,7 @@
 1. Zephyr 如何发现一个 board（为什么放在这里就能被 `-b ...` 找到）
 2. 双核 STM32H745 (M7/M4) 为什么会有两个 build target
 3. 每个文件在 BSP 里到底负责什么
-4. 把 console 绑定到 UART7、并基于 25MHz HSE 的时钟配置应该写在哪里
+4. 把 console 绑定到 UART7、并基于 20MHz HSE 的时钟配置应该写在哪里
 5. 初次上电调试最容易踩的坑（pinctrl、memory、chosen 等）
 
 注意：你当前这个工作区里没有安装 `west` 命令（终端里运行会报 `command not found`），所以我在文档里给的 `west build` 命令是标准 Zephyr 用法，你在有 Zephyr SDK/环境的机器上执行即可。
@@ -208,7 +208,7 @@ M7 核的顶层 DTS。它做三件最关键的事：
 - `zephyr,console = &uart7;`
 - `zephyr,shell-uart = &uart7;`
 
-以及 HSE/PLL/RCC 的时钟树配置（25MHz HSE 基线）。
+以及 HSE/PLL/RCC 的时钟树配置（20MHz HSE 基线）。
 
 你通常要改什么（上电调试顺序建议）：
 
@@ -374,15 +374,15 @@ Zephyr 的 console/shell 选择通常在 DTS 的 `chosen {}` 中指定：
 
 同时还要确保 `&uart7 { status = "okay"; ... }` 并正确配置 pinmux（pinctrl）。
 
-## 5. HSE = 25MHz 与 PLL 要写在哪里
+## 5. HSE = 20MHz 与 PLL 要写在哪里
 
 常见做法：
 
-1. 使能 `&clk_hse`，并设置 `clock-frequency = <DT_FREQ_M(25)>;`
+1. 使能 `&clk_hse`，并设置 `clock-frequency = <DT_FREQ_M(20)>;`
 2. 配置 `&pll`（div/mul/dividers）
 3. 在 `&rcc` 中选择 `clocks = <&pll>;` 并给出期望系统频率（例如 `480MHz`）
 
-本例把这些都写在 M7 的 DTS 中（参考 disco 的 25MHz baseline），位置见：
+本例把这些都写在 M7 的 DTS 中（参考 disco 的 20MHz baseline），位置见：
 [ats_stm32h745_stm32h745xx_m7.dts](/home/hjp/zephyrproject/app/example-application/boards/vendor/ats_stm32h745/ats_stm32h745_stm32h745xx_m7.dts)。
 
 经验建议：
