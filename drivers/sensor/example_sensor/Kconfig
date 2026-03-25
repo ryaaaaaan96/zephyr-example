@@ -1,6 +1,17 @@
 # Copyright (c) 2021 Nordic Semiconductor ASA
 # SPDX-License-Identifier: Apache-2.0
 
+# 这是一个示例 sensor 驱动（实现 Zephyr 标准 sensor API）。
+#
+# `depends on DT_HAS_ZEPHYR_EXAMPLE_SENSOR_ENABLED`：
+# - 只有当 devicetree 中存在 compatible 为 "zephyr,example-sensor" 且 status=okay 的节点，
+#   才允许启用这个驱动选项。
+# - 该 DT_HAS_* 符号由 devicetree 生成，名字与驱动代码中的 DT_DRV_COMPAT
+#   （zephyr_example_sensor）保持一致。
+#
+# `select GPIO`：
+# - 该示例驱动通过 GPIO 读取输入电平，所以需要 GPIO 子系统支持。
+
 config EXAMPLE_SENSOR
 	bool "Example sensor"
 	default y

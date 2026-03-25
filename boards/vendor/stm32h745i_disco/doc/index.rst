@@ -111,8 +111,8 @@ Programming and Debugging
 
 STM32H745I-DISCO board includes an ST-LINK/V3 embedded debug tool interface.
 
-Applications for the ``stm32h745i_disco`` board should be built per core target,
-using either ``stm32h745i_disco/stm32h745xx/m7`` or ``stm32h745i_disco/stm32h745xx/m4`` as the target
+Applications for the ``stm32h745i_disco_ref`` board should be built per core target,
+using either ``stm32h745i_disco_ref/stm32h745xx/m7`` or ``stm32h745i_disco_ref/stm32h745xx/m4`` as the target
 (see :ref:`build_an_application` and :ref:`application_run` for more details).
 
 .. note::
@@ -172,7 +172,7 @@ Build and flash the application:
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world
-   :board: stm32h745i_disco/stm32h745xx/m7
+   :board: stm32h745i_disco_ref/stm32h745xx/m7
    :goals: build flash
 
 You should see the following message on the console:
@@ -192,7 +192,7 @@ Here is an example for the :zephyr:code-sample:`blinky` application on M4 core.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/basic/blinky
-   :board: stm32h745i_disco/stm32h745xx/m4
+   :board: stm32h745i_disco_ref/stm32h745xx/m4
    :goals: build flash
 
 .. note::
@@ -208,7 +208,7 @@ You can debug an application in the usual way.  Here is an example for the
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world
-   :board: stm32h745i_disco/stm32h745xx/m7
+   :board: stm32h745i_disco_ref/stm32h745xx/m7
    :maybe-skip-config:
    :goals: debug
 

@@ -10,6 +10,22 @@
 /build*
 /twister-out*
 
+# Zephyr 常见构建目录名通常叫 build/ 或 build_*/build-*
+# 上面 `/build*` 只会匹配“仓库根目录下”的 build*，这里再补一条匹配任意子目录下的 build* 目录。
+build*/
+
+# CMake/Ninja 生成文件（通常位于 build 目录；如果误做了 in-source build，也避免被提交）
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/Makefile
+/build.ninja
+/.ninja_deps
+/.ninja_log
+/compile_commands.json
+/.vscode
+
+
 __pycache__/
 
 # docs

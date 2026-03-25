@@ -1,6 +1,16 @@
 # Copyright (c) 2024 Nordic Semiconductor ASA
 # SPDX-License-Identifier: Apache-2.0
 
+# 这是一个 Zephyr Devicetree binding（设备树“绑定/约束”）文件：
+#
+# - 它用 YAML 描述某个 compatible 设备节点允许有哪些属性（properties），属性的类型是什么，
+#   是否必选（required），以及属性的含义（description）。
+# - 构建时，Zephyr 的 devicetree 工具会读取这些 binding：
+#   1) 校验你的 DTS/overlay 里写的属性是否符合规则
+#   2) 生成供 C 代码使用的 DT_* 宏（例如 DT_INST_PROP_OR、GPIO_DT_SPEC_INST_GET 等）
+#
+# 你可以把它理解为：给 devicetree 节点写“schema + 文档 + 校验规则”。
+#
 description: |
   A generic binding for a GPIO-controlled blinking LED. Note that this binding
   has no vendor prefix, as it does not target a specific device or vendor.
@@ -13,16 +23,56 @@ description: |
         blink-period-ms = <1000>;
     };
 
+# compatible 是 binding 的核心标识之一：
+#
+# - 你在 DTS 里写的节点必须有 compatible，并且匹配这里的字符串，才能“套用”本 binding 的规则。
+# - 在驱动代码里，经常会把 compatible 映射成 DT_DRV_COMPAT：
+#     drivers/blink/gpio_led.c 里有：
+#       #define DT_DRV_COMPAT blink_gpio_led
+#   这对应 compatible "blink-gpio-led"（连字符 '-' 会转换成下划线 '_'）。
+#
+#   这样一来，DT_INST_FOREACH_STATUS_OKAY(...) 这些宏才能找到 compatible 匹配的实例。
 compatible: "blink-gpio-led"
 
+# include 表示“继承/复用”其他通用 binding：
+#
+# - base.yaml 是 Zephyr 提供的基础 schema（常见字段、通用约束等）
+# - 通过 include，你可以少写很多通用字段定义，并确保基础规则一致
 include: base.yaml
 
+# properties 定义该 compatible 节点支持的属性集合。
+# 每个属性下可写：
+# - type：属性值类型（int、string、phandle、phandle-array、boolean 等）
+# - required：是否必选（true 表示 DTS 里必须写）
+# - description：属性含义（同时也会用于生成文档/提示）
 properties:
   led-gpios:
+    # type: phandle-array 表示这是一个“引用 + 参数列表”的数组（通常用于 GPIO/I2C/SPI 等）。
+    #
+    # 对 GPIO 来说，典型写法是：
+    #   led-gpios = <&gpio0 0 GPIO_ACTIVE_HIGH>;
+    #
+    # 解释：
+    # - &gpio0：phandle，指向某个 GPIO 控制器节点（也就是 GPIO port 的设备）
+    # - 0：GPIO 引脚号（pin）
+    # - GPIO_ACTIVE_HIGH：flags，表示“高电平为 active”（如果是低电平点亮就用 ACTIVE_LOW）
+    #
+    # 驱动里会用 GPIO_DT_SPEC_INST_GET(inst, led_gpios) 把它解析成 gpio_dt_spec：
+    # - port/pin/dt_flags 都在这个结构体里，后续用 gpio_pin_configure_dt 等 API 操作
     type: phandle-array
     required: true
     description: GPIO-controlled LED.
 
   blink-period-ms:
+    # type: int 表示一个整数（这里单位是毫秒）。
+    #
+    # 这个属性不是 required：
+    # - 你可以不写；驱动里会用 DT_INST_PROP_OR(inst, blink_period_ms, 0U)
+    #   在缺省时拿到 0（表示“默认不自动启动闪烁”）。
+    # - 你也可以写一个正整数；驱动 init 时会按该周期启动 k_timer。
+    #
+    # 对应驱动行为（drivers/blink/gpio_led.c）：
+    # - period_ms == 0：不自动开始闪烁，等待应用调用 blink_set_period_ms()
+    # - period_ms > 0：init 阶段直接 k_timer_start()，按周期翻转 LED
     type: int
     description: Initial blinking period in milliseconds.

@@ -1,6 +1,17 @@
 # Copyright (c) 2024 Nordic Semiconductor ASA
 # SPDX-License-Identifier: Apache-2.0
 
+# 这是 blink 子系统的一个具体驱动实现：GPIO 控制的 LED 闪烁驱动。
+#
+# 常见模式：
+# - `depends on DT_HAS_..._ENABLED`：只有 devicetree 里存在对应 compatible 且 status=okay 的节点，
+#   才允许使能该驱动（避免“没有硬件实例也编译驱动”的情况）。
+# - `select GPIO`：该驱动依赖 GPIO 子系统，选中它能确保相关 Kconfig 自动打开。
+#
+# 这里的 DT_HAS_BLINK_GPIO_LED_ENABLED 的来源：
+# - 来自 binding 的 compatible "blink-gpio-led"
+# - 驱动里 DT_DRV_COMPAT 也使用 blink_gpio_led（与 compatible 的符号化转换一致）
+
 config BLINK_GPIO_LED
 	bool "GPIO-controlled LED blink driver"
 	default y

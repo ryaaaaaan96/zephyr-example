@@ -1,5 +1,5 @@
-identifier: stm32h745i_disco/stm32h745xx/m7
-name: STM32H745XI Discovery (M7)
+identifier: stm32h745i_disco_ref/stm32h745xx/m7
+name: STM32H745XI Discovery (M7, reference copy)
 type: mcu
 arch: arm
 toolchain:

@@ -1,6 +1,16 @@
 # Copyright (c) 2021 Nordic Semiconductor ASA
 # SPDX-License-Identifier: Apache-2.0
 
+# 这是一个 Zephyr Devicetree binding（设备树 binding）示例：
+#
+# - 用 YAML 描述 compatible= "zephyr,example-sensor" 的节点允许/需要哪些属性
+# - 构建时用于：
+#   1) 校验 DTS/overlay 中该节点的写法是否正确
+#   2) 生成供驱动使用的 DT_* 宏展开结果
+#
+# 这个 binding 对应的驱动在本仓库里是 out-of-tree（工程自带的自定义驱动），
+# 用于教学：展示“如何在 Zephyr 工程中自定义一个驱动 + binding + devicetree 节点”。
+#
 description: |
   An example sensor that reads the GPIO level defined in input-gpios. The
   purpose of this sensor is to demonstrate how to create out-of-tree drivers.
@@ -12,12 +22,38 @@ description: |
         input-gpios = <&gpio0 0 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
     };
 
+# compatible 是 binding 的匹配键：
+#
+# - DTS/overlay 节点只要写了 compatible = "zephyr,example-sensor"，就会套用本 binding 的规则
+# - 这里的 "zephyr," 是 vendor 前缀（vendor prefix）：
+#   这是一种命名约定，用来避免 compatible 字符串冲突（类似域名/命名空间的概念）。
+#
+# 在驱动里通常会写：
+#   #define DT_DRV_COMPAT zephyr_example_sensor
+# 对应 compatible "zephyr,example-sensor"（逗号 ',' 和连字符 '-' 都会转换为下划线 '_'）。
 compatible: "zephyr,example-sensor"
 
+# include: base.yaml 表示复用 Zephyr 提供的通用 binding 基类（基础校验规则/通用字段定义）。
 include: base.yaml
 
+# properties 定义该 compatible 节点的属性集合。
 properties:
   input-gpios:
+    # input-gpios：用于描述“要被采样/感知的输入 GPIO 引脚”。
+    #
+    # type: phandle-array 的典型写法：
+    #   input-gpios = <&gpio0 0 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+    #
+    # 解释：
+    # - &gpio0：phandle，指向 GPIO 控制器节点（GPIO port 的设备）
+    # - 0：引脚号 pin
+    # - (GPIO_PULL_UP | GPIO_ACTIVE_LOW)：flags
+    #   GPIO_PULL_UP：开启内部上拉
+    #   GPIO_ACTIVE_LOW：低电平表示 active（对一些按键/传感器常见）
+    #
+    # 驱动侧常用 GPIO_DT_SPEC_* 宏把它解析成 struct gpio_dt_spec，然后：
+    # - init 时用 gpio_pin_configure_dt(...) 配为输入
+    # - 读取时用 gpio_pin_get_dt(...) 读电平，从而实现“示例传感器”
     type: phandle-array
     required: true
     description: Input GPIO to be sensed.

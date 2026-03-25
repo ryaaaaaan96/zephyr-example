@@ -137,8 +137,8 @@ Programming and Debugging
 
 Nucleo H745ZI-Q board includes an ST-LINK/V3 embedded debug tool interface.
 
-Applications for the ``nucleo_h745zi_q`` board should be built per core target,
-using either ``nucleo_h745zi_q/stm32h745xx/m7`` or ``nucleo_h745zi_q/stm32h745xx/m4``
+Applications for the ``nucleo_h745zi_q_ref`` board should be built per core target,
+using either ``nucleo_h745zi_q_ref/stm32h745xx/m7`` or ``nucleo_h745zi_q_ref/stm32h745xx/m4``
 as the target (see :ref:`build_an_application` and :ref:`application_run` for more details).
 
 .. note::
@@ -200,7 +200,7 @@ Build and flash the application:
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world
-   :board: nucleo_h745zi_q/stm32h745xx/m7
+   :board: nucleo_h745zi_q_ref/stm32h745xx/m7
    :goals: build flash
 
 You should see the following message on the console:
@@ -220,7 +220,7 @@ Here is an example for the :zephyr:code-sample:`blinky` application on M4 core.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/basic/blinky
-   :board: nucleo_h745zi_q/stm32h745xx/m4
+   :board: nucleo_h745zi_q_ref/stm32h745xx/m4
    :goals: build flash
 
 .. note::
@@ -236,7 +236,7 @@ for the :zephyr:code-sample:`hello_world` application.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/hello_world
-   :board: nucleo_h745zi_q/stm32h745xx/m7
+   :board: nucleo_h745zi_q_ref/stm32h745xx/m7
    :maybe-skip-config:
    :goals: debug
 

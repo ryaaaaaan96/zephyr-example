@@ -1,6 +1,17 @@
 # Copyright (c) 2021 Nordic Semiconductor ASA
 # SPDX-License-Identifier: Apache-2.0
 
+# 这是本仓库 out-of-tree drivers 的 Kconfig 总入口文件。
+#
+# 作用：
+# - 在 menuconfig 中创建一个顶层菜单 "Drivers"
+# - 把 drivers 目录下各个子系统/子目录的 Kconfig 递归包含进来
+#
+# 注意：
+# - 这里的 `rsource "xxx/Kconfig"` 是“相对包含”，路径相对于本文件所在目录
+# - 只有当这些子 Kconfig 被 source 进 Zephyr 的 Kconfig 树后，
+#   对应的 CONFIG_* 选项才会出现在 menuconfig 中
+
 menu "Drivers"
 rsource "blink/Kconfig"
 rsource "sensor/Kconfig"

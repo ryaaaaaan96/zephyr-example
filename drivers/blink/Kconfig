@@ -1,6 +1,12 @@
 # Copyright (c) 2024 Nordic Semiconductor ASA
 # SPDX-License-Identifier: Apache-2.0
 
+# 这里是 blink 子系统（自定义 driver class）Kconfig 入口。
+# 它演示：
+# - 如何用 menuconfig 创建一个“子系统总开关”（CONFIG_BLINK）
+# - 如何在子系统开关打开后，再提供更细粒度的配置/子驱动选择
+# - 如何挂接 Zephyr 的日志配置模板（生成 CONFIG_BLINK_LOG_LEVEL 等）
+
 menuconfig BLINK
 	bool "Blink device drivers"
 	help
@@ -8,16 +14,22 @@ menuconfig BLINK
 
 if BLINK
 
+# 驱动初始化优先级（最终会传给 DEVICE_DT_INST_DEFINE 的 init priority）
+# 越小越早初始化。Zephyr 常用默认值是 KERNEL_INIT_PRIORITY_DEVICE。
 config BLINK_INIT_PRIORITY
 	int "Blink device drivers init priority"
 	default KERNEL_INIT_PRIORITY_DEVICE
 	help
 	  Blink device drivers init priority.
 
+# 下面这段是 Zephyr 日志模板的“模块信息”：
+# - module/module-str 用来生成日志配置项，例如 CONFIG_BLINK_LOG_LEVEL
+# - source "subsys/logging/Kconfig.template.log_config" 会引入通用日志选项模板
 module = BLINK
 module-str = blink
 source "subsys/logging/Kconfig.template.log_config"
 
+# 引入该子系统下的具体驱动实现开关（可以有多个 Kconfig.*）
 rsource "Kconfig.gpio_led"
 
 endif # BLINK

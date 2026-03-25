@@ -1,6 +1,13 @@
 # Copyright (c) 2021 Nordic Semiconductor ASA
 # SPDX-License-Identifier: Apache-2.0
 
+# 这里是“复用 Zephyr 现有 driver class”的示例入口。
+#
+# 关键点：
+# - `if SENSOR`：只有当 Zephyr 自带的 sensor 子系统被启用（CONFIG_SENSOR=y），
+#   才把本仓库 out-of-tree 的 sensor 驱动选项展示出来。
+# - 这样能避免用户在没启用 sensor 子系统时看到不相关选项，也减少依赖冲突。
+
 if SENSOR
 rsource "example_sensor/Kconfig"
 endif # SENSOR

@@ -15,6 +15,35 @@
 
 总结：只要 Kconfig 选项打开，并且 CMakeLists 挂上了子目录/源文件，对应驱动就会被编译进来。
 
+### 0.1 `.config` 在哪里、什么时候生成（理解 CONFIG_xxx 的前提）
+
+很多人第一次看 `drivers/CMakeLists.txt` 会疑惑：`CONFIG_BLINK` 这种变量到底在哪里被“决定”为 y/n？
+
+答案是：它来自 Kconfig 的配置结果，最终落在构建输出目录的 `.config` 文件里。CMake 只是读取它来决定是否编译某些目录。
+
+`.config` 位置（典型）：
+
+- `<build_dir>/zephyr/.config`
+
+例如你这样构建：
+
+```sh
+west build -b ats_stm32h745/stm32h745xx/m7 -d build_m7 app
+```
+
+那么 `.config` 就在：
+
+- `build_m7/zephyr/.config`
+
+生成时机：
+
+- 每次你执行 `west build` 时（更准确说：CMake 配置阶段会触发 Kconfig），Kconfig 会综合以下输入生成/更新 `.config`：
+  - board 的 `*_defconfig`（board目录下）
+  - 应用的 `prj.conf`（以及 overlay config）
+  - 所有依赖关系与默认值计算
+
+如果你改了 `prj.conf`、Kconfig 文件、板卡 defconfig 等，并使用 `west build -p auto` 重新配置，`.config` 就会相应更新。
+
 ## 1. 当前仓库 drivers 目录结构
 
 你现在的 `drivers/` 里有两条典型路线：
@@ -95,6 +124,24 @@
   表示这个设备实现了 blink driver class 的操作表。
 - `DEVICE_DT_INST_DEFINE(...)` + `DT_INST_FOREACH_STATUS_OKAY(...)`
   经典的“按 DTS 实例自动生成设备”方式：devicetree 里出现多少个 `status = "okay"` 的实例，就生成多少个 device。
+
+#### 3.3.1 `DEVICE_API` 这一组宏到底在做什么
+
+在 Zephyr 的设备模型里（见 Zephyr 源码 `include/zephyr/device.h`），常见会一起出现三类宏：
+
+- `DEVICE_API(<class>, <name>)`
+  定义某个 driver class 的 API 表（vtable）。该宏会把 vtable 放进一个“可迭代 section”
+  （iterable section），便于系统在链接后拿到“某类设备 API 表”的地址范围。
+- `DEVICE_API_GET(<class>, dev)`
+  从 `dev->api` 取出并强转为该 class 的 API 指针类型（例如 blink 就是 `struct blink_driver_api *`）。
+- `DEVICE_API_IS(<class>, dev)`
+  利用 section 的起止地址判断 `dev->api` 是否属于该 class，从而在运行时做“类型校验”。
+
+在本仓库的 blink driver class 里，[blink.h](/home/hjp/zephyrproject/app/example-application/include/app/drivers/blink.h) 使用了：
+
+- `__ASSERT_NO_MSG(DEVICE_API_IS(blink, dev));`
+
+这能在调试阶段尽早发现“把不是 blink 类设备的 device 指针传进来”的错误。
 
 ### 3.4 Kconfig 与 CMake 怎么把它编进去
 
@@ -209,4 +256,3 @@
 - binding 没被 Zephyr 找到。
   现象：devicetree 编译报 “unknown compatible”。
   解决：确认 module.yml 的 `dts_root: .` 生效，binding 放在 `dts/bindings/**.yaml` 下。
-

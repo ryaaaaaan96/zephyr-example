@@ -1,6 +1,12 @@
 board:
-  name: nucleo_h745zi_q
-  full_name: Nucleo H745ZI-Q
+  # 注意：这里不能叫 nucleo_h745zi_q
+  # 因为 Zephyr 主仓库已经自带同名板卡（zephyr/boards/st/nucleo_h745zi_q）。
+  # 当你把本仓库作为 --board-root 时，west 会同时扫描两边的 boards，
+  # 同名会导致 `west boards` 失败（Board defined multiple times）。
+  #
+  # 这里我们把它改成 *_ref，表示“学习/参考用的拷贝”，避免与上游冲突。
+  name: nucleo_h745zi_q_ref
+  full_name: Nucleo H745ZI-Q (Reference Copy)
   vendor: st
   socs:
     - name: stm32h745xx
