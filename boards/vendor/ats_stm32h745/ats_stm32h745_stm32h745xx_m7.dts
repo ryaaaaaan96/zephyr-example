@@ -3,6 +3,7 @@
  */
 
 /dts-v1/;
+#include <mem.h>
 /*
  * 说明：为什么这里 include 的是 <st/h7/stm32h745Xi_m7.dtsi>，而不是一个名字里带 IIT6 的 .dtsi？
  *
@@ -104,13 +105,63 @@
 	 * UART7 引脚复用（pinmux）。
 	 *
 	 * 重要：
-	 * - 这组映射（TX=PF7, RX=PF6）只是一个“占位示例”。
-	 * - 请按你的原理图/PCB 走线修改为真实引脚。
-	 * - `&uart7_tx_pf7` 这类符号来自 include 的 pinctrl .dtsi。
+	 * - `&uart7_tx_pe7` 这类符号来自 include 的 pinctrl .dtsi。
 	 *   如果你选的引脚在 pinctrl include 里没有定义，需要在板级补充 pinctrl 定义。
 	 */
-	pinctrl-0 = <&uart7_tx_pf7 &uart7_rx_pf6>;
+	pinctrl-0 = <&uart7_tx_pe8 &uart7_rx_pe7>;
 	pinctrl-names = "default";
 	current-speed = <115200>;
 	status = "okay";
+};
+
+&quadspi {
+	/*
+	 * GD25B512MEYJG 连接在 QSPI Bank1：
+	 * - IO3 = PF6
+	 * - IO2 = PF7
+	 * - IO0 = PF8
+	 * - IO1 = PF9
+	 * - CLK = PF10
+	 * - CS# = PG6
+	 *
+	 * 当前先把它定义成 M7 侧的外部存储设备，不替代内部 flash0。
+	 */
+	pinctrl-0 = <&quadspi_bk1_io3_pf6
+		     &quadspi_bk1_io2_pf7
+		     &quadspi_bk1_io0_pf8
+		     &quadspi_bk1_io1_pf9
+		     &quadspi_clk_pf10
+		     &quadspi_bk1_ncs_pg6>;
+	pinctrl-names = "default";
+	flash-id = <1>;
+	ssht-enable;
+	status = "okay";
+
+	qspi_flash: qspi-nor-flash@0 {
+		/*
+		 * 这颗器件是 GigaDevice 的 GD25B512MEYJG，不是 Winbond W25Q。
+		 *
+		 * 和前面讨论过的 W25Q 相比，当前定义里最重要的区别是：
+		 * - 厂商不同：GD25B512MEYJG 属于 GigaDevice，不使用 W25Q 的 JEDEC 假设。
+		 * - 容量不同：这里是 512 Mbits（64 MiB），不是常见 W25Q64/W25Q128 的 64/128 Mbits。
+		 * - 地址长度不同：64 MiB 已超过 24-bit 地址可覆盖范围，运行时需要进入 4-byte 地址模式。
+		 *
+		 * 同时也有一些“用法上相同”的地方：
+		 * - 仍然走 STM32 的通用 QSPI NOR 驱动，所以 compatible 继续使用 "st,stm32-qspi-nor"。
+		 * - 仍然是 4 线数据模式，因此 spi-bus-width = <4>。
+		 * - 当前 page program 操作码仍按 PP_1_1_4（0x32/4-byte 时为 0x34）配置，
+		 *   这点与很多 W25Q 器件的常见配置是一致的。
+		 *
+		 * 第一版先依赖运行时读取 SFDP 来识别器件参数，因此这里暂不手写 jedec-id / sfdp-bfp。
+		 */
+		compatible = "st,stm32-qspi-nor";
+		reg = <0>;
+		size = <DT_SIZE_M(512)>; /* 512 Mbits = 64 MiB */
+		qspi-max-frequency = <40000000>;
+		cs-high-time = <2>;
+		spi-bus-width = <4>;
+		writeoc = "PP_1_1_4";
+		reset-cmd;
+		status = "okay";
+	};
 };
