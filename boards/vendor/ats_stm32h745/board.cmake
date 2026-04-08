@@ -14,8 +14,8 @@
 board_runner_args(stm32cubeprogrammer "--port=swd" "--reset-mode=hw")
 
 # J-Link 的 --device 字符串依赖你安装的 J-Link 设备库/pack 版本。
-# 如果 J-Link 提示 "unknown device"，可以用 J-Link Commander 列出支持的设备名后再调整这里。
-board_runner_args(jlink "--device=STM32H745II" "--speed=4000")
+# 对 H745 系列，Zephyr 参考板常用 STM32H745XI；若本地 J-Link 版本较旧可先用该通用名。
+board_runner_args(jlink "--device=STM32H745XI" "--speed=4000")
 
 # 对 OpenOCD，使用 target-handle 确保 'west flash/debug' 连接到双核芯片的正确核。
 if(CONFIG_BOARD_ATS_STM32H745_STM32H745XX_M7)

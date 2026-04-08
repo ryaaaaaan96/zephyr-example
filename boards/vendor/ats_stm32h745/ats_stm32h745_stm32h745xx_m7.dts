@@ -4,25 +4,13 @@
 
 /dts-v1/;
 #include <mem.h>
+
 /*
- * 说明：为什么这里 include 的是 <st/h7/stm32h745Xi_m7.dtsi>，而不是一个名字里带 IIT6 的 .dtsi？
- *
- * - 在你当前的 Zephyr 源码树（/home/hjp/zephyrproject/zephyr/dts/arm/st/h7/）里，
- *   STM32H745 的 SoC 级 dtsi 只有：
- *   - stm32h745.dtsi（双核 SoC 的公共描述）
- *   - stm32h745Xi_m7.dtsi（面向 M7 核的裁剪/修正：删除 cpu@1、删除 flash1，并设置 flash0 size 等）
- *   - stm32h745Xi_m4.dtsi（面向 M4 核的裁剪/修正：删除 cpu@0、删除 flash0/itcm/dtcm，并设置 flash1 size 等）
- *
- * - Zephyr 通常不会为每一个具体料号（如 STM32H745IIT6）单独提供 SoC dtsi，
- *   而是按“系列/容量档/核”提供一组通用的 SoC 描述，然后由板级 DTS 去选择/覆盖。
- *
- * - 对 STM32H745IIT6（总 Flash 2MB，通常分成两个 1MB bank）来说，
- *   stm32h745Xi_m7.dtsi 中的 flash0 size=1024KB 与常见 bank 划分是匹配的；
- *   这也是 nucleo_h745zi_q / stm32h745i_disco 等参考板卡采用同样 include 逻辑的原因。
- *
- * 如果你将来遇到“Flash/RAM 容量不匹配”或“你的芯片 bank 划分不同”的情况：
- * - 首选：在板级 .dts 里覆盖 flash0/flash1 的 reg size 或其它差异点
- * - 或者：新增一个板级 SoC 变体 .dtsi（例如只做 flash size 修正），再在这里 include
+ * SoC include 文件选择说明：
+ * - 当前使用 M7 核心，所以 include stm32h745Xi_m7.dtsi。
+ * - Zephyr 不会为每个料号（如 STM32H745IIT6）单独提供 SoC dtsi，
+ *   而是按系列/核提供通用描述，再由板级 DTS 覆盖。
+ * - STM32H745IIT6 总 Flash 2MB，分为 flash0/flash1 两个 bank。
  */
 #include <st/h7/stm32h745Xi_m7.dtsi>
 #include "ats_stm32h745.dtsi"
@@ -31,27 +19,20 @@
 	model = "ATS STM32H745IIT6 board (M7)";
 	compatible = "ats,stm32h745";
 
-	/* 归属于 CM7（M7 核）的硬件资源 */
 	chosen {
 		/*
-		 * Console / shell 输出设备。
-		 *
-		 * 你要求 UART7 作为 console。在 Zephyr 的 STM32 设备树中，
-		 * UART7 通常使用 label "uart7"（而不是 "usart7"）。
+		 * Console 输出配置：
+		 * - UART4 用作 printk/shell console。
+		 * - 注意 Zephyr 中 UART label 与设备树节点一致。
 		 */
-		zephyr,console = &uart7;
-		zephyr,shell-uart = &uart7;
+		zephyr,console = &usart6;
+		zephyr,shell-uart = &usart6;
 
 		/*
-		 * 内存归属（给 M7）：
-		 * - DTCM 仅存在于 M7 核，常用于栈、ISR 高频数据、或对延迟敏感的缓冲区。
-		 * - SRAM0 是 AXI SRAM，通常作为 M7 的主 RAM。
-		 * - flash0 是内部 Flash bank 之一，通常用于 M7 镜像。
-		 *
-		 * 对双核来说，Zephyr 参考实现常把 flash/sram 在两核之间划分：
-		 * - M7：flash0 / sram0
-		 * - M4：flash1 / sram1
-		 * 你后续如果实现了不同的内存布局，也可以再调整。
+		 * M7 核心内存和 Flash 分配：
+		 * - DTCM：内部高速 RAM，供 ISR/延迟敏感数据使用。
+		 * - SRAM0：AXI SRAM，M7 主 RAM。
+		 * - flash0：内部 Flash bank0，用于 M7 镜像。
 		 */
 		zephyr,dtcm = &dtcm;
 		zephyr,sram = &sram0;
@@ -59,73 +40,44 @@
 	};
 };
 
-&clk_lsi {
-	status = "okay";
+/* 时钟配置 */
+&clk_lsi { status = "okay"; };
+&clk_hsi48 { status = "okay"; };
+&clk_hsi {
+	status = "okay"; /* 使用内部 HSI 64MHz 作为系统时钟源（调试阶段） */
 };
-
-&clk_hsi48 {
-	status = "okay";
-};
-
 &clk_hse {
-	/* 外部晶振/时钟输入。你要求 25MHz。 */
-	clock-frequency = <DT_FREQ_M(25)>;
-	status = "okay";
+	clock-frequency = <DT_FREQ_M(20)>;
+	status = "okay"; /* 调试阶段未接外部晶振 */
 };
 
-/*
- * 时钟配置参考 stm32h745i_disco，作为 25MHz HSE 的合理基线。
- * 后续请根据你的功耗/主频/外设时钟需求调整分频与倍频参数。
- *
- * 学习建议：
- * - 先保证 console 稳定输出
- * - 再调整 PLL，让 SYSCLK 与外设时钟满足需求
- */
+/* PLL 配置参考 stm32h745i_disco */
 &pll {
-	div-m = <5>;
-	mul-n = <192>;
+	div-m = <2>;
+	mul-n = <80>;   /* 可根据目标 SYSCLK 调整 */
 	div-p = <2>;
-	div-q = <15>;
-	div-r = <4>;
+	div-q = <2>;
+	div-r = <2>;
 	clocks = <&clk_hse>;
 	status = "okay";
 };
 
+/* RCC 主时钟配置 */
 &rcc {
-	/*
-	 * 选择 PLL1 作为主时钟源，并给出目标频率。
-	 * STM32 时钟驱动会据此推导各个总线时钟。
-	 */
 	clocks = <&pll>;
-	clock-frequency = <DT_FREQ_M(480)>;
+	clock-frequency = <DT_FREQ_M(400)>; /* SYSCLK = 400 MHz */
 };
 
-&uart7 {
-	/*
-	 * UART7 引脚复用（pinmux）。
-	 *
-	 * 重要：
-	 * - `&uart7_tx_pe7` 这类符号来自 include 的 pinctrl .dtsi。
-	 *   如果你选的引脚在 pinctrl include 里没有定义，需要在板级补充 pinctrl 定义。
-	 */
-	pinctrl-0 = <&uart7_tx_pe8 &uart7_rx_pe7>;
+/* UART7 用作 console */
+&usart6 {
+	pinctrl-0 = <&usart6_tx_pg14 &usart6_rx_pg9>;
 	pinctrl-names = "default";
 	current-speed = <115200>;
 	status = "okay";
 };
 
+/* QSPI 外部 Flash 配置 */
 &quadspi {
-	/*
-	 * GD25B512MEYJG 连接在 QSPI Bank1：
-	 * - IO3 = PF6
-	 * - IO2 = PF7
-	 * - IO0 = PF8
-	 * - IO1 = PF9
-	 * - CLK = PF10
-	 * - CS# = PG6
-	 *
-	 * 当前先把它定义成 M7 侧的外部存储设备，不替代内部 flash0。
-	 */
 	pinctrl-0 = <&quadspi_bk1_io3_pf6
 		     &quadspi_bk1_io2_pf7
 		     &quadspi_bk1_io0_pf8
@@ -137,23 +89,8 @@
 	ssht-enable;
 	status = "okay";
 
+	/* GD25B512MEYJG QSPI NOR Flash */
 	qspi_flash: qspi-nor-flash@0 {
-		/*
-		 * 这颗器件是 GigaDevice 的 GD25B512MEYJG，不是 Winbond W25Q。
-		 *
-		 * 和前面讨论过的 W25Q 相比，当前定义里最重要的区别是：
-		 * - 厂商不同：GD25B512MEYJG 属于 GigaDevice，不使用 W25Q 的 JEDEC 假设。
-		 * - 容量不同：这里是 512 Mbits（64 MiB），不是常见 W25Q64/W25Q128 的 64/128 Mbits。
-		 * - 地址长度不同：64 MiB 已超过 24-bit 地址可覆盖范围，运行时需要进入 4-byte 地址模式。
-		 *
-		 * 同时也有一些“用法上相同”的地方：
-		 * - 仍然走 STM32 的通用 QSPI NOR 驱动，所以 compatible 继续使用 "st,stm32-qspi-nor"。
-		 * - 仍然是 4 线数据模式，因此 spi-bus-width = <4>。
-		 * - 当前 page program 操作码仍按 PP_1_1_4（0x32/4-byte 时为 0x34）配置，
-		 *   这点与很多 W25Q 器件的常见配置是一致的。
-		 *
-		 * 第一版先依赖运行时读取 SFDP 来识别器件参数，因此这里暂不手写 jedec-id / sfdp-bfp。
-		 */
 		compatible = "st,stm32-qspi-nor";
 		reg = <0>;
 		size = <DT_SIZE_M(512)>; /* 512 Mbits = 64 MiB */
