@@ -68,13 +68,7 @@
 	clock-frequency = <DT_FREQ_M(400)>; /* SYSCLK = 400 MHz */
 };
 
-/* UART7 用作 console */
-&usart6 {
-	pinctrl-0 = <&usart6_tx_pg14 &usart6_rx_pg9>;
-	pinctrl-names = "default";
-	current-speed = <115200>;
-	status = "okay";
-};
+
 
 /* QSPI 外部 Flash 配置 */
 &quadspi {

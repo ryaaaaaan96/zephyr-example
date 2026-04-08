@@ -98,6 +98,17 @@
 	 */
 };
 
+
+
+/* UART6 用作 console */
+&usart6 {
+	pinctrl-0 = <&usart6_tx_pg14 &usart6_rx_pg9>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};
+
+
 &rcc {
 	d1cpre = <1>;
 	hpre = <2>;
