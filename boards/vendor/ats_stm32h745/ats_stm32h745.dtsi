@@ -98,15 +98,87 @@
 	 */
 };
 
+/* USART2 */
+&usart2 {
+	pinctrl-0 = <&usart2_tx_pd5 &usart2_rx_pd6>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};
 
+/* USART3 */
+&usart3 {
+	pinctrl-0 = <&usart3_tx_pd8 &usart3_rx_pd9>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};
 
-/* UART6 用作 console */
+/* UART4 */
+&uart4 {
+	pinctrl-0 = <&uart4_tx_pb9 &uart4_rx_pb8>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};
+
+/* USART6 用作 console */
 &usart6 {
 	pinctrl-0 = <&usart6_tx_pg14 &usart6_rx_pg9>;
 	pinctrl-names = "default";
 	current-speed = <115200>;
 	status = "okay";
 };
+
+/* UART7 */
+&uart7 {
+	pinctrl-0 = <&uart7_tx_pe8 &uart7_rx_pe7>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};
+
+/* UART8 */
+&uart8 {
+	pinctrl-0 = <&uart8_tx_pj8 &uart8_rx_pj9>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};
+
+
+/* QSPI 外部 Flash 配置 */
+&quadspi {
+	pinctrl-0 = <&quadspi_bk1_io3_pf6
+		     &quadspi_bk1_io2_pe2
+		     &quadspi_bk1_io0_pf8
+		     &quadspi_bk1_io1_pf9
+		     &quadspi_clk_pf10
+		     &quadspi_bk1_ncs_pg6>;
+	pinctrl-names = "default";
+	flash-id = <1>;
+	ssht-enable;
+	status = "okay";
+
+	/* GD25B512MEYJG QSPI NOR Flash */
+	qspi_flash: qspi-nor-flash@0 {
+		compatible = "st,stm32-qspi-nor";
+		reg = <0>;
+		size = <DT_SIZE_M(512)>; /* 512 Mbits = 64 MiB */
+		qspi-max-frequency = <40000000>;
+		cs-high-time = <2>;
+		spi-bus-width = <4>;
+		writeoc = "PP_1_1_4";
+		reset-cmd;
+		status = "okay";
+	};
+};
+
+
+/*  PA11     ------> FDCAN1_RX
+    PA12     ------> FDCAN1_TX  
+*/
+
 
 
 &rcc {
