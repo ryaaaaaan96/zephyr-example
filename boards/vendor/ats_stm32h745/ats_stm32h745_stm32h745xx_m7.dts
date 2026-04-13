@@ -74,7 +74,13 @@
 	pinctrl-0 = <&usart2_tx_pd5 &usart2_rx_pd6>;
 	pinctrl-names = "default";
 	current-speed = <115200>;
+    fifo-enable;
 	status = "okay";
+    dmas = <&dma2 7 4 0x0 0x0>,  /* TX: DMA2 Stream7, Channel4 */
+           <&dma2 2 4 0x0 0x0>;  /* RX: DMA2 Stream2, Channel4 */
+    dma-names = "tx", "rx";
+
+
 };
 
 /* USART3 */
@@ -120,6 +126,16 @@
 	current-speed = <115200>;
 	status = "okay";
 };
+
+/* 启用 DMA 控制器 */
+&dma1 {
+    status = "okay";
+};
+
+&dma2 {
+    status = "okay";
+};
+
 
 /*  PA11     ------> FDCAN1_RX
     PA12     ------> FDCAN1_TX  

@@ -1,0 +1,12 @@
+compatible: "vendor,rs485"
+
+description: RS485 software controller
+
+properties:
+  uart:
+    type: phandle
+    required: true
+
+  de-gpios:
+    type: phandle-array
+    required: true

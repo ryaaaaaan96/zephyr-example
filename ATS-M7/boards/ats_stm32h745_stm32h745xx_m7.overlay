@@ -1,13 +1,10 @@
-/* Reserve a partition on external QSPI flash for FlashDB. */
-&qspi_flash {
-	partitions {
-		compatible = "fixed-partitions";
-		#address-cells = <1>;
-		#size-cells = <1>;
+/ {
 
-		flashdb_partition: partition@0 {
-			label = "flashdb";
-			reg = <0x00000000 0x00020000>; /* 128 KiB */
-		};
-	};
+    rs485_0: rs485 {
+        compatible = "vendor,rs485";
+
+        uart = <&usart2>;
+        de-gpios = <&gpiod 5 GPIO_ACTIVE_HIGH>;
+        status = "okay";
+    };
 };
