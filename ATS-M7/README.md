@@ -35,3 +35,8 @@ west build -b ats_stm32h745/stm32h745xx/m4 -d build_m4 -p auto app
 - 想加应用配置项：改 [Kconfig](/home/hjp/zephyrproject/app/example-application/app/Kconfig) 并在 [prj.conf](/home/hjp/zephyrproject/app/example-application/app/prj.conf) 里设置默认值。
 - 想做板级差异：在 [boards](/home/hjp/zephyrproject/app/example-application/app/boards) 放对应的 `*.overlay`。
 
+## 4. QSPI Flash 前期验证（读/写/擦）
+
+- 设备树里已经有 `qspi_flash` 节点（`qspi-nor-flash@0`），应用侧用 `DT_NODELABEL(qspi_flash)` 直接拿设备。
+- 验证代码在 `ATS-M7/src/main.c` 的 `qspi_flash_smoke_test()`：会对 `QSPI_TEST_OFFSET` 所在的一个 erase block 做 `erase -> write -> read` 校验（注意会破坏该偏移处的数据）。
+- 后续上 littlefs 的时候，建议再加 `fixed-partitions` + `zephyr,storage`，把文件系统固定在一个分区里，避免误擦到别的区域。

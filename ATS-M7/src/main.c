@@ -1,40 +1,34 @@
 #include <zephyr/kernel.h>
-#include <zephyr/device.h>
-#include <zephyr/drivers/uart.h>
+#include <string.h>
+#include "usart_service.h"
+#include "qspi_service.h"
 
-/* 使用默认控制台串口 */
-#define UART_NODE DT_CHOSEN(zephyr_console)
-
-static const struct device *uart_dev = DEVICE_DT_GET(UART_NODE);
+#define RX_BUF_SIZE 64
 
 int main(void)
 {
-    uint8_t c;
-    struct uart_config cfg;
-    struct device temp;
-    memcpy((void *)&temp, (void *)uart_dev, sizeof(temp));
+	uint8_t c;
+	uint8_t rx_buf[RX_BUF_SIZE];
+	size_t rx_len = 0;
 
-    if (uart_config_get(uart_dev, &cfg) == 0) {
-        printk("baudrate: %d\n", cfg.baudrate);
-        printk("parity: %d\n", cfg.parity);
-        printk("stop bits: %d\n", cfg.stop_bits);
-        printk("data bits: %d\n", cfg.data_bits);
-    }
+	if (usart_service_init() != 0) return 0;
+	if (qspi_service_init() != 0) return 0;
 
-    if (!device_is_ready(uart_dev)) 
-    {
-        printk("aaaaaa\n");
-    }
+	printk("QSPI before erase:\n");
+	qspi_service_dump(0, 64);
 
-    while (1) {
+	qspi_service_erase();
 
-        /* 接收（如果有数据） */
-        if (uart_poll_in(uart_dev, &c) == 0) {
+	while (1) {
+		if (usart_service_poll(&c) == 0) {
+			printk("%c", c);
 
-            /* 回显（发送出去） */
-            uart_poll_out(uart_dev, c);
-        }
-    }
+			rx_buf[rx_len++] = c;
 
-    return 0;
+			if (c == '\n' || rx_len == RX_BUF_SIZE) {
+				qspi_service_write(rx_buf, rx_len);
+				rx_len = 0;
+			}
+		}
+	}
 }

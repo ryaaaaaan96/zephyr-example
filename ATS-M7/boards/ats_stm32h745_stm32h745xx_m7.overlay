@@ -1,0 +1,13 @@
+/* Reserve a partition on external QSPI flash for FlashDB. */
+&qspi_flash {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		flashdb_partition: partition@0 {
+			label = "flashdb";
+			reg = <0x00000000 0x00020000>; /* 128 KiB */
+		};
+	};
+};
