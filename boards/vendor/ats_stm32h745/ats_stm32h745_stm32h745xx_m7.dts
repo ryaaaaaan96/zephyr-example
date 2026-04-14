@@ -135,7 +135,9 @@
 &dma2 {
     status = "okay";
 };
-
+&dmamux1 {
+    status = "okay";   // ❌ 会导致 DMA 不工作
+};
 
 /*  PA11     ------> FDCAN1_RX
     PA12     ------> FDCAN1_TX  

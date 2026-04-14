@@ -93,7 +93,7 @@ int rs485_write(const uint8_t *data, size_t len)
     memcpy(tx_buf, data, len);
 
     gpio_pin_set_dt(&de_gpio, 1);
-#if 0
+#if 1
     // 👈 DMA 发送
     ret = uart_tx(uart_dev, tx_buf, len, SYS_FOREVER_MS);
     if (ret != 0) {
