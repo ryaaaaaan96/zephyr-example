@@ -4,7 +4,7 @@
         compatible = "vendor,rs485";
 
         uart = <&usart2>;
-        de-gpios = <&gpiod 5 GPIO_ACTIVE_HIGH>;
+        de-gpios = <&gpiod 3 GPIO_ACTIVE_HIGH>;
         status = "okay";
     };
 };
