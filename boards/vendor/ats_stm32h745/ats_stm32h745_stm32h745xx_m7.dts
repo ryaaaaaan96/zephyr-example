@@ -74,10 +74,10 @@
 	pinctrl-0 = <&usart2_tx_pd5 &usart2_rx_pd6>;
 	pinctrl-names = "default";
 	current-speed = <115200>;
-    fifo-enable;
+
 	status = "okay";
-    dmas = <&dma2 7 4 0x0 0x0>,  /* TX: DMA2 Stream7, Channel4 */
-           <&dma2 2 4 0x0 0x0>;  /* RX: DMA2 Stream2, Channel4 */
+    dmas = <&dma2 1 44 (STM32_DMA_PERIPH_TX | STM32_DMA_PRIORITY_HIGH) 0
+            &dma2 2 43 (STM32_DMA_PERIPH_RX | STM32_DMA_PRIORITY_HIGH) 0>;
     dma-names = "tx", "rx";
 
 

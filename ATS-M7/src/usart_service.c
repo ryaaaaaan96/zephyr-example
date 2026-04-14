@@ -34,6 +34,11 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
             break;
 
         case UART_RX_RDY:
+            printk("RX_RDY len=%d offset=%d\n",
+                evt->data.rx.len,
+                evt->data.rx.offset);
+
+
             ring_buf_put(&rx_ring,
                          evt->data.rx.buf + evt->data.rx.offset,
                          evt->data.rx.len);
@@ -88,13 +93,21 @@ int rs485_write(const uint8_t *data, size_t len)
     memcpy(tx_buf, data, len);
 
     gpio_pin_set_dt(&de_gpio, 1);
-
+#if 0
     // 👈 DMA 发送
     ret = uart_tx(uart_dev, tx_buf, len, SYS_FOREVER_MS);
     if (ret != 0) {
         gpio_pin_set_dt(&de_gpio, 0);
         return ret;
     }
+#else
+    // 手动发送（阻塞）
+    for (int i = 0; i < len; i++) {
+        uart_poll_out(uart_dev, tx_buf[i]);
+    }
+
+    gpio_pin_set_dt(&de_gpio, 0);
+#endif 
 
     k_sem_take(&tx_done_sem, K_FOREVER);
     return 0;
@@ -103,7 +116,7 @@ int rs485_write(const uint8_t *data, size_t len)
 int rs485_read(uint8_t *buf, size_t max_len, k_timeout_t timeout)
 {
     size_t total = 0;
-    int64_t end = k_uptime_get() + k_ticks_to_ms_floor64(timeout.ticks);
+    int64_t end = k_uptime_get() +  (timeout.ticks);
 
     while (total < max_len) {
         uint32_t len = ring_buf_get(&rx_ring, buf + total, max_len - total);

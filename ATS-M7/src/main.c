@@ -35,16 +35,16 @@ int main(void)
                             K_MSEC(200));
 
         if (rx_len > 0) {
-            printk("RX(%d): ", rx_len);
+            // printk("RX(%d): ", rx_len);
 
-            for (int i = 0; i < rx_len; i++) {
-                printk("%02X ", rx_buff[i]);
-            }
+            // for (int i = 0; i < rx_len; i++) {
+            //     printk("%02X ", rx_buff[i]);
+            // }
 
-            printk("\n");
+            // printk("\n");
         }
 
-        k_sleep(K_MSEC(10));
+        k_sleep(K_MSEC(100));
     }
 
     return 0;
