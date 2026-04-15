@@ -10,6 +10,7 @@
 #define RX_BUF_SIZE 256
 #define RX_RING_SIZE 512
 #define TX_BUF_SIZE 256
+#define RX_TIMEOUT_US 304 
 
 /* -------------------------- DMA 必须用 nocache --------------------------- */
 static uint8_t __aligned(32) __attribute__((section(".nocache.data"))) rx_buf[2][RX_BUF_SIZE];
@@ -50,7 +51,7 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
             break;
 
         case UART_RX_DISABLED:
-            uart_rx_enable(dev, rx_buf[0], RX_BUF_SIZE, SYS_FOREVER_US);
+            uart_rx_enable(dev, rx_buf[0], RX_BUF_SIZE, RX_TIMEOUT_US);
             break;
 
         default:
@@ -74,7 +75,7 @@ int rs485_init(void)
 
     uart_callback_set(uart_dev, uart_cb, NULL);
 
-    uart_rx_enable(uart_dev, rx_buf[0], RX_BUF_SIZE, SYS_FOREVER_US);
+    uart_rx_enable(uart_dev, rx_buf[0], RX_BUF_SIZE, RX_TIMEOUT_US);
 
     printk("RS485 DMA TX + DMA RX 初始化成功\n");
     return 0;

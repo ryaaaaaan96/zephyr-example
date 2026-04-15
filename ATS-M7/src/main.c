@@ -35,13 +35,13 @@ int main(void)
                             K_MSEC(200));
 
         if (rx_len > 0) {
-            // printk("RX(%d): ", rx_len);
+            printk("RX(%d): ", rx_len);
 
-            // for (int i = 0; i < rx_len; i++) {
-            //     printk("%02X ", rx_buff[i]);
-            // }
-
-            // printk("\n");
+            for (int i = 0; i < rx_len; i++) {
+                printk("%02X ", rx_buff[i]);
+            }
+            rs485_write(rx_buff, rx_len);
+            printk("\n");
         }
 
         k_sleep(K_MSEC(100));
