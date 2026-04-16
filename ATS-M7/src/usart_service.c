@@ -3,9 +3,11 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/linker/section_tags.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/ring_buffer.h>
+#include <limits.h>
 #include <errno.h>
 
 /* 缓冲参数 */
@@ -16,21 +18,15 @@
 
 /* RS485 设备树节点：包含 uart 与 de-gpios */
 #define RS485_NODE DT_NODELABEL(rs485_0)
-
-/* USART 寄存器偏移（仅用于调试打印） */
-#define UART_REG_BASE DT_REG_ADDR(DT_PHANDLE(RS485_NODE, uart))
-#define USART_CR1_OFFSET  0x00
-#define USART_CR2_OFFSET  0x04
-#define USART_CR3_OFFSET  0x08
-#define USART_RTOR_OFFSET 0x14
-#define USART_ISR_OFFSET  0x1C
+BUILD_ASSERT(DT_NODE_HAS_STATUS(RS485_NODE, okay),
+	     "rs485_0 node is missing or disabled");
 
 /*
  * DMA 缓冲放到 nocache 段：
  * 避免 D-Cache 与 DMA 同步问题导致收发数据异常。
  */
-static uint8_t __aligned(32) __attribute__((section(".nocache.data"))) rx_buf[2][RX_BUF_SIZE];
-static uint8_t __aligned(32) __attribute__((section(".nocache.data"))) tx_buf[TX_BUF_SIZE];
+static uint8_t rx_buf[2][RX_BUF_SIZE] __aligned(32) __nocache;
+static uint8_t tx_buf[TX_BUF_SIZE] __aligned(32) __nocache;
 
 static int rx_buf_idx = 1;
 RING_BUF_DECLARE(rx_ring, RX_RING_SIZE);
@@ -40,33 +36,6 @@ static const struct gpio_dt_spec de_gpio = GPIO_DT_SPEC_GET(RS485_NODE, de_gpios
 
 /* 等待发送完成信号量 */
 static struct k_sem tx_done_sem;
-
-/* 读 USART 寄存器（调试用） */
-static uint32_t uart_reg_read(uint32_t offset)
-{
-	return *(volatile uint32_t *)(UART_REG_BASE + offset);
-}
-
-/* 打印串口关键寄存器状态（调试超时/中断问题时使用） */
-static void uart_dump_regs(const char *tag)
-{
-	uint32_t cr1 = uart_reg_read(USART_CR1_OFFSET);
-	uint32_t cr2 = uart_reg_read(USART_CR2_OFFSET);
-	uint32_t cr3 = uart_reg_read(USART_CR3_OFFSET);
-	uint32_t rtor = uart_reg_read(USART_RTOR_OFFSET);
-	uint32_t isr = uart_reg_read(USART_ISR_OFFSET);
-
-	printk("[%s] USART@0x%08x CR1=0x%08x CR2=0x%08x CR3=0x%08x RTOR=0x%08x ISR=0x%08x\n",
-	       tag, UART_REG_BASE, cr1, cr2, cr3, rtor, isr);
-	printk("[%s] IDLEIE=%d RTOIE=%d RTOEN=%d RTOR_RTO=%u IDLE=%d RTOF=%d\n",
-	       tag,
-	       !!(cr1 & USART_CR1_IDLEIE),
-	       !!(cr1 & USART_CR1_RTOIE),
-	       !!(cr2 & USART_CR2_RTOEN),
-	       (unsigned int)(rtor & USART_RTOR_RTO),
-	       !!(isr & USART_ISR_IDLE),
-	       !!(isr & USART_ISR_RTOF));
-}
 
 /* UART 异步回调：处理 DMA 收发事件 */
 static void uart_cb(const struct device *dev, struct uart_event *evt, void *user_data)
@@ -83,13 +52,11 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 
 	case UART_RX_RDY:
 		/* 把驱动缓冲中的新数据搬进环形缓冲 */
-		printk("RX_RDY len=%d offset=%d\n",
-		    evt->data.rx.len,
-		    evt->data.rx.offset);
-
-		ring_buf_put(&rx_ring,
-			     evt->data.rx.buf + evt->data.rx.offset,
-			     evt->data.rx.len);
+		if (ring_buf_put(&rx_ring,
+				 evt->data.rx.buf + evt->data.rx.offset,
+				 evt->data.rx.len) != evt->data.rx.len) {
+			printk("RS485 RX ring overflow, dropping bytes\n");
+		}
 		break;
 
 	case UART_RX_BUF_REQUEST:
@@ -100,9 +67,7 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 
 	case UART_RX_DISABLED:
 		/* 若 RX 被关闭，立刻重启，确保持续接收 */
-		uart_dump_regs("UART_RX_DISABLED before re-enable");
 		uart_rx_enable(dev, rx_buf[0], RX_BUF_SIZE, RX_TIMEOUT_US);
-		uart_dump_regs("UART_RX_DISABLED after re-enable");
 		break;
 
 	default:
@@ -112,6 +77,8 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
 
 int rs485_init(void)
 {
+	int ret;
+
 	if (!device_is_ready(uart_dev)) {
 		printk("UART not ready\n");
 		return -ENODEV;
@@ -124,11 +91,18 @@ int rs485_init(void)
 	gpio_pin_configure_dt(&de_gpio, GPIO_OUTPUT_INACTIVE);
 	k_sem_init(&tx_done_sem, 0, 1);
 
-	uart_callback_set(uart_dev, uart_cb, NULL);
+	ret = uart_callback_set(uart_dev, uart_cb, NULL);
+	if (ret != 0) {
+		printk("uart_callback_set failed: %d\n", ret);
+		return ret;
+	}
 
 	/* 启动异步接收（DMA） */
-	uart_rx_enable(uart_dev, rx_buf[0], RX_BUF_SIZE, RX_TIMEOUT_US);
-	uart_dump_regs("rs485_init after uart_rx_enable");
+	ret = uart_rx_enable(uart_dev, rx_buf[0], RX_BUF_SIZE, RX_TIMEOUT_US);
+	if (ret != 0) {
+		printk("uart_rx_enable failed: %d\n", ret);
+		return ret;
+	}
 
 	printk("RS485 DMA TX + DMA RX 初始化成功\n");
 	return 0;
@@ -171,7 +145,17 @@ int rs485_write(const uint8_t *data, size_t len)
 int rs485_read(uint8_t *buf, size_t max_len, k_timeout_t timeout)
 {
 	size_t total = 0;
-	int64_t end = k_uptime_get() + (timeout.ticks);
+	int64_t end_ms;
+
+	if (timeout.ticks == K_FOREVER.ticks) {
+		end_ms = INT64_MAX;
+	} else {
+		int64_t timeout_ms = k_ticks_to_ms_floor64(timeout.ticks);
+		if (timeout_ms <= 0) {
+			timeout_ms = 1;
+		}
+		end_ms = k_uptime_get() + timeout_ms;
+	}
 
 	while (total < max_len) {
 		uint32_t len = ring_buf_get(&rx_ring, buf + total, max_len - total);
@@ -182,7 +166,7 @@ int rs485_read(uint8_t *buf, size_t max_len, k_timeout_t timeout)
 		if (timeout.ticks == K_NO_WAIT.ticks) {
 			break;
 		}
-		if (k_uptime_get() > end) {
+		if (k_uptime_get() > end_ms) {
 			break;
 		}
 		k_sleep(K_MSEC(1));

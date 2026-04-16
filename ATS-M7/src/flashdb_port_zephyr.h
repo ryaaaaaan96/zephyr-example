@@ -28,4 +28,10 @@ int flashdb_port_erase(off_t off, size_t len);
 /* 冒烟测试：erase->write->read->verify（会改写分区起始区域） */
 int flashdb_port_self_test(void);
 
+/* 打印原始 RDID（QSPI 控制器 1-1-1 模式下的 0x9F/0x9E），失败时回退 3 字节 JEDEC API */
+int flashdb_port_print_jedec_id(void);
+
+/* 打印 SFDP 头、参数头与 BFP DW15（包含 QER 位提取） */
+int flashdb_port_print_sfdp_dw15(void);
+
 #endif /* FLASHDB_PORT_ZEPHYR_H */

@@ -16,6 +16,7 @@ target_include_directories(app PRIVATE
 target_sources(app PRIVATE
                 src/main.c
                 src/modbus_service.c
+                src/usart_service.c
                 src/modbus_points_db.c
                 src/flashdb_port_zephyr.c
                 src/fal_stub_zephyr.c

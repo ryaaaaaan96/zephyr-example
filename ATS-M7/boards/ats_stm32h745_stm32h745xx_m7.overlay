@@ -1,21 +1,27 @@
 /*
  * ATS-M7 app overlay
- * - Modbus serial backend on USART2
+ * - Application-managed RS485 backend on USART2
  * - QSPI fixed partitions: first half reserved for FlashDB
  */
 
 &usart2 {
 	status = "okay";
+};
 
-	modbus0: modbus0 {
-		compatible = "zephyr,modbus-serial";
+/ {
+	rs485_0: rs485_0 {
+		compatible = "vendor,rs485";
 		status = "okay";
+		uart = <&usart2>;
 		/* Adjust this pin to your actual RS485 DE wiring if different. */
 		de-gpios = <&gpiod 3 GPIO_ACTIVE_HIGH>;
 	};
 };
 
 &qspi_flash {
+	/* Override SFDP QER value (7 unsupported by stm32-qspi driver path). */
+	quad-enable-requirements = "S2B1v6";
+
 	partitions {
 		compatible = "fixed-partitions";
 		#address-cells = <1>;
