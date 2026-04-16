@@ -1,28 +1,36 @@
-/ {
-    rs485_0: rs485 {
-        compatible = "vendor,rs485";
+/*
+ * ATS-M7 app overlay
+ * - Modbus serial backend on USART2
+ * - QSPI fixed partitions: first half reserved for FlashDB
+ */
 
-        uart = <&usart2>;
-        de-gpios = <&gpiod 3 GPIO_ACTIVE_HIGH>;
-        status = "okay";
-    };
+&usart2 {
+	status = "okay";
+
+	modbus0: modbus0 {
+		compatible = "zephyr,modbus-serial";
+		status = "okay";
+		/* Adjust this pin to your actual RS485 DE wiring if different. */
+		de-gpios = <&gpiod 3 GPIO_ACTIVE_HIGH>;
+	};
 };
 
-&pll2 {
-    div-m = <5>;
-    mul-n = <100>;
-    div-p = <2>;
-    div-q = <10>;
-    div-r = <2>;
-    clocks = <&clk_hse>;
-    status = "okay";
-};
+&qspi_flash {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
 
-&fdcan1 {
-    pinctrl-0 = <&fdcan1_rx_pa11 &fdcan1_tx_pa12>;
-    pinctrl-names = "default";
-    clocks = <&rcc STM32_CLOCK(APB1_2, 8)>,
-             <&rcc STM32_SRC_PLL2_Q FDCAN_SEL(2)>;
-    bus-speed = <500000>;
-    status = "okay";
+		/* 64MiB external flash first half for FlashDB */
+		flashdb_partition: partition@0 {
+			label = "flashdb";
+			reg = <0x00000000 0x02000000>;
+		};
+
+		/* Remaining second half for future data/filesystem */
+		qspi_user_partition: partition@2000000 {
+			label = "qspi_user";
+			reg = <0x02000000 0x02000000>;
+		};
+	};
 };
