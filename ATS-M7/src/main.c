@@ -4,6 +4,12 @@
 #include "modbus_service.h"
 #include "flashdb_port_zephyr.h"
 
+/*
+ * 应用主入口流程：
+ * 1) 初始化 QSPI 分区访问层（供点位持久化使用）
+ * 2) 初始化 Modbus RTU 服务
+ * 3) 周期执行轻量 tick（用于维护输入寄存器心跳）
+ */
 int main(void)
 {
 	int ret;

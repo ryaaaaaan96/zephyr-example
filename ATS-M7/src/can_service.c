@@ -10,6 +10,7 @@
 
 #include "can_service.h"
 
+/* 板级 DTS 中的 CAN 设备节点 */
 #define CAN_NODE DT_NODELABEL(fdcan1)
 #define CAN_RX_MSGQ_LEN 16
 #define CAN_BITRATE DT_PROP_OR(CAN_NODE, bus_speed, 500000)
@@ -18,6 +19,7 @@
 static const struct device *can_dev = DEVICE_DT_GET(CAN_NODE);
 CAN_MSGQ_DEFINE(can_rx_msgq, CAN_RX_MSGQ_LEN);
 
+/* 当前已安装的标准/扩展过滤器 ID（用于后续移除） */
 static int can_rx_filter_std_id = -1;
 static int can_rx_filter_ext_id = -1;
 
@@ -34,6 +36,7 @@ static void can_remove_all_filters(void)
 	}
 }
 
+/* 安装“全接收”过滤器：标准帧+扩展帧都放进消息队列 */
 static int can_service_set_rx_filter_all(void)
 {
 	struct can_filter std_all = {
@@ -63,13 +66,14 @@ static int can_service_set_rx_filter_all(void)
 		can_rx_filter_ext_id = ext_ret;
 		printk("CAN RX filter: all standard + all extended\n");
 	} else {
-		/* Some setups may not expose ext filters, standard traffic still works. */
+		/* 部分硬件场景可能不支持扩展过滤器，但标准帧仍可工作 */
 		printk("CAN RX filter: all standard (extended add failed: %d)\n", ext_ret);
 	}
 
 	return 0;
 }
 
+/* 状态枚举转文本，便于日志观察 */
 static const char *can_state_name(enum can_state state)
 {
 	switch (state) {
@@ -88,6 +92,7 @@ static const char *can_state_name(enum can_state state)
 	}
 }
 
+/* CAN 总线状态变化回调 */
 static void can_state_change_cb(const struct device *dev, enum can_state state,
 				struct can_bus_err_cnt err_cnt, void *user_data)
 {
@@ -98,6 +103,7 @@ static void can_state_change_cb(const struct device *dev, enum can_state state,
 	       can_state_name(state), err_cnt.tx_err_cnt, err_cnt.rx_err_cnt);
 }
 
+/* 统一发送入口：根据 flags 判定标准帧/扩展帧 */
 static int can_service_send_internal(uint32_t id, uint8_t flags,
 				     const uint8_t *data, size_t len)
 {
@@ -144,6 +150,7 @@ int can_service_init(void)
 
 	can_set_state_change_callback(can_dev, can_state_change_cb, NULL);
 
+	/* 先停再配，避免重复初始化导致状态不一致 */
 	ret = can_stop(can_dev);
 	if ((ret != 0) && (ret != -EALREADY)) {
 		printk("CAN stop failed: %d\n", ret);
@@ -195,6 +202,7 @@ int can_service_set_rx_filter(uint32_t id, uint32_t mask, uint8_t flags)
 	};
 	int filter_id;
 
+	/* 参数合法性校验：标准帧/扩展帧 ID 范围不同 */
 	if ((flags & CAN_FILTER_IDE) != 0U) {
 		if ((id > CAN_EXT_ID_MASK) || (mask > CAN_EXT_ID_MASK)) {
 			return -EINVAL;
@@ -206,7 +214,6 @@ int can_service_set_rx_filter(uint32_t id, uint32_t mask, uint8_t flags)
 	}
 
 	can_remove_all_filters();
-
 	k_msgq_purge(&can_rx_msgq);
 
 	filter_id = can_add_rx_filter_msgq(can_dev, &can_rx_msgq, &filter);

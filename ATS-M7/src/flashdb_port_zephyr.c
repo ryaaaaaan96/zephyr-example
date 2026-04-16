@@ -8,16 +8,19 @@
 
 #include "flashdb_port_zephyr.h"
 
+/* 对应 overlay 中定义的 qspi 前半区分区 */
 #define FLASHDB_PARTITION_NODE DT_NODELABEL(flashdb_partition)
 BUILD_ASSERT(DT_NODE_HAS_STATUS(FLASHDB_PARTITION_NODE, okay),
 	"flashdb_partition is missing or disabled");
 
+/* Zephyr flash_map 分区 ID */
 #define FLASHDB_AREA_ID PARTITION_ID(flashdb_partition)
 
 static const struct flash_area *flashdb_area;
 static size_t flashdb_erase_size;
 static size_t flashdb_write_align;
 
+/* 越界保护：所有读写擦都先经过该检查 */
 static int flashdb_check_range(off_t off, size_t len)
 {
 	if (flashdb_area == NULL) {
@@ -48,6 +51,7 @@ int flashdb_port_init(void)
 		return -ENODEV;
 	}
 
+	/* 根据分区起始偏移查询擦除页大小 */
 	ret = flash_get_page_info_by_offs(flashdb_area->fa_dev,
 					  flashdb_area->fa_off, &page);
 	if (ret != 0) {
@@ -137,6 +141,7 @@ int flashdb_port_self_test(void)
 		align = 1U;
 	}
 
+	/* flash 写入长度必须满足对齐约束 */
 	wr_len = ROUND_UP(sizeof(msg), align);
 	if (wr_len > sizeof(tx)) {
 		return -ENOMEM;
