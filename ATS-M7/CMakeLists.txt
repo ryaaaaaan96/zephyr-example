@@ -14,7 +14,8 @@ target_include_directories(app PRIVATE src)
 target_sources(app PRIVATE 
                 src/main.c
                 src/usart_service.c
-                src/qspi_service.c)
+                src/qspi_service.c
+                src/can_service.c)
 
 # The code below locates the git index file for this repository and adds it as a dependency for
 # the application VERSION file so that if the repo has a new commit added, even if no files in

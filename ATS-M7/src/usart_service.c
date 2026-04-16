@@ -1,4 +1,5 @@
 #include <zephyr/kernel.h>
+#include <zephyr/devicetree.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/drivers/gpio.h>
@@ -10,7 +11,15 @@
 #define RX_BUF_SIZE 256
 #define RX_RING_SIZE 512
 #define TX_BUF_SIZE 256
-#define RX_TIMEOUT_US 304 
+#define RX_TIMEOUT_US 304
+
+#define UART_REG_BASE DT_REG_ADDR(DT_PHANDLE(RS485_NODE, uart))
+#define USART_CR1_OFFSET  0x00
+#define USART_CR2_OFFSET  0x04
+#define USART_CR3_OFFSET  0x08
+#define USART_RTOR_OFFSET 0x14
+#define USART_ISR_OFFSET  0x1C
+
 
 /* -------------------------- DMA 必须用 nocache --------------------------- */
 static uint8_t __aligned(32) __attribute__((section(".nocache.data"))) rx_buf[2][RX_BUF_SIZE];
@@ -24,6 +33,31 @@ static const struct device *uart_dev = DEVICE_DT_GET(DT_PHANDLE(RS485_NODE, uart
 static const struct gpio_dt_spec de_gpio = GPIO_DT_SPEC_GET(RS485_NODE, de_gpios);
 
 static struct k_sem tx_done_sem;
+
+static uint32_t uart_reg_read(uint32_t offset)
+{
+    return *(volatile uint32_t *)(UART_REG_BASE + offset);
+}
+
+static void uart_dump_regs(const char *tag)
+{
+    uint32_t cr1 = uart_reg_read(USART_CR1_OFFSET);
+    uint32_t cr2 = uart_reg_read(USART_CR2_OFFSET);
+    uint32_t cr3 = uart_reg_read(USART_CR3_OFFSET);
+    uint32_t rtor = uart_reg_read(USART_RTOR_OFFSET);
+    uint32_t isr = uart_reg_read(USART_ISR_OFFSET);
+
+    printk("[%s] USART@0x%08x CR1=0x%08x CR2=0x%08x CR3=0x%08x RTOR=0x%08x ISR=0x%08x\n",
+           tag, UART_REG_BASE, cr1, cr2, cr3, rtor, isr);
+    printk("[%s] IDLEIE=%d RTOIE=%d RTOEN=%d RTOR_RTO=%u IDLE=%d RTOF=%d\n",
+           tag,
+           !!(cr1 & USART_CR1_IDLEIE),
+           !!(cr1 & USART_CR1_RTOIE),
+           !!(cr2 & USART_CR2_RTOEN),
+           (unsigned int)(rtor & USART_RTOR_RTO),
+           !!(isr & USART_ISR_IDLE),
+           !!(isr & USART_ISR_RTOF));
+}
 
 static void uart_cb(const struct device *dev, struct uart_event *evt, void *user_data)
 {
@@ -51,7 +85,9 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *user
             break;
 
         case UART_RX_DISABLED:
+            uart_dump_regs("UART_RX_DISABLED before re-enable");
             uart_rx_enable(dev, rx_buf[0], RX_BUF_SIZE, RX_TIMEOUT_US);
+            uart_dump_regs("UART_RX_DISABLED after re-enable");
             break;
 
         default:
@@ -76,6 +112,7 @@ int rs485_init(void)
     uart_callback_set(uart_dev, uart_cb, NULL);
 
     uart_rx_enable(uart_dev, rx_buf[0], RX_BUF_SIZE, RX_TIMEOUT_US);
+    uart_dump_regs("rs485_init after uart_rx_enable");
 
     printk("RS485 DMA TX + DMA RX 初始化成功\n");
     return 0;

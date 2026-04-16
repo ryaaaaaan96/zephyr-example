@@ -2,6 +2,9 @@
 #define RS485_SERVICE_H
 
 #include <stddef.h>
+#include <stdint.h>
+
+#include <zephyr/kernel.h>
 
 int rs485_init(void);
 int rs485_write(const uint8_t *data, size_t len);

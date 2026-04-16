@@ -1,5 +1,4 @@
 / {
-
     rs485_0: rs485 {
         compatible = "vendor,rs485";
 
@@ -7,4 +6,23 @@
         de-gpios = <&gpiod 3 GPIO_ACTIVE_HIGH>;
         status = "okay";
     };
+};
+
+&pll2 {
+    div-m = <5>;
+    mul-n = <100>;
+    div-p = <2>;
+    div-q = <10>;
+    div-r = <2>;
+    clocks = <&clk_hse>;
+    status = "okay";
+};
+
+&fdcan1 {
+    pinctrl-0 = <&fdcan1_rx_pa11 &fdcan1_tx_pa12>;
+    pinctrl-names = "default";
+    clocks = <&rcc STM32_CLOCK(APB1_2, 8)>,
+             <&rcc STM32_SRC_PLL2_Q FDCAN_SEL(2)>;
+    bus-speed = <500000>;
+    status = "okay";
 };
