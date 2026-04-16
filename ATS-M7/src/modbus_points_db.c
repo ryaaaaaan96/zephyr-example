@@ -2,253 +2,202 @@
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/printk.h>
 #include <errno.h>
-#include <string.h>
+#include <stdbool.h>
+#include <stdint.h>
 
-#include "flashdb_port_zephyr.h"
+#include <flashdb.h>
+
 #include "modbus_points_db.h"
 
-/* 记录头标识，用于判断 flash 中数据是否为本模块格式 */
-#define MODBUS_POINTS_MAGIC   0x4D425044u /* "MBPD" */
-/* 记录版本，后续格式升级时可据此做兼容 */
-#define MODBUS_POINTS_VER     1u
+/* KVDB 实例：用于保存 Modbus Holding/Coil 点位 */
+static struct fdb_kvdb g_modbus_kvdb;
+/* FlashDB 内部回调的互斥锁 */
+static struct k_mutex g_db_lock;
+static bool g_db_ready;
 
-/* 持久化记录布局：
- * - 整体写在 flashdb 分区偏移 0
- * - checksum 覆盖除自身外的全部字段
- */
-struct modbus_points_record {
-	uint32_t magic;
-	uint16_t version;
-	uint16_t reserved;
-	uint16_t holding[MODBUS_POINT_HR_COUNT];
-	uint8_t coils;
-	uint8_t pad[3];
-	uint32_t checksum;
+/* 点位与 KV 键名映射（地址不变，键名可读） */
+static char g_key_hr0[] = "hr0";
+static char g_key_hr1[] = "hr1";
+static char g_key_hr2[] = "hr2";
+static char g_key_hr3[] = "hr3";
+static char g_key_coil0[] = "coil0";
+static char g_key_coil1[] = "coil1";
+
+static char *const g_holding_keys[MODBUS_POINT_HR_COUNT] = {
+	g_key_hr0, g_key_hr1, g_key_hr2, g_key_hr3
 };
 
-/* 读-改-写流程需要互斥，防止并发请求导致脏写 */
-static struct k_mutex points_db_lock;
-static bool points_db_ready;
+static char *const g_coil_keys[MODBUS_POINT_COIL_COUNT] = {
+	g_key_coil0, g_key_coil1
+};
 
-static uint32_t calc_checksum(const struct modbus_points_record *rec)
+/* 默认值：首次格式化或数据缺失时写入 */
+static uint16_t g_default_hr0 = 1u;
+static uint16_t g_default_hr1 = 100u;
+static uint16_t g_default_hr2 = 500u;
+static uint16_t g_default_hr3 = 0x1234u;
+static uint8_t g_default_coil0 = 1u;
+static uint8_t g_default_coil1 = 0u;
+
+static struct fdb_default_kv_node g_default_nodes[] = {
+	{ .key = g_key_hr0, .value = &g_default_hr0, .value_len = sizeof(g_default_hr0) },
+	{ .key = g_key_hr1, .value = &g_default_hr1, .value_len = sizeof(g_default_hr1) },
+	{ .key = g_key_hr2, .value = &g_default_hr2, .value_len = sizeof(g_default_hr2) },
+	{ .key = g_key_hr3, .value = &g_default_hr3, .value_len = sizeof(g_default_hr3) },
+	{ .key = g_key_coil0, .value = &g_default_coil0, .value_len = sizeof(g_default_coil0) },
+	{ .key = g_key_coil1, .value = &g_default_coil1, .value_len = sizeof(g_default_coil1) },
+};
+
+static struct fdb_default_kv g_default_kv = {
+	.kvs = g_default_nodes,
+	.num = ARRAY_SIZE(g_default_nodes),
+};
+
+static void kvdb_lock(fdb_db_t db)
 {
-	const uint8_t *p = (const uint8_t *)rec;
-	const size_t len = sizeof(*rec) - sizeof(rec->checksum);
-	uint32_t sum = 0u;
-
-	/* 简单滚动校验，开销低，足够用于掉电/坏数据检测 */
-	for (size_t i = 0; i < len; i++) {
-		sum = (sum * 33u) + p[i];
-	}
-
-	return sum;
+	ARG_UNUSED(db);
+	k_mutex_lock(&g_db_lock, K_FOREVER);
 }
 
-static void set_defaults(struct modbus_points_record *rec)
+static void kvdb_unlock(fdb_db_t db)
 {
-	memset(rec, 0, sizeof(*rec));
-	/* 默认参数可按现场需求调整 */
-	rec->magic = MODBUS_POINTS_MAGIC;
-	rec->version = MODBUS_POINTS_VER;
-	rec->holding[MODBUS_POINT_HR_DEVICE_ID] = 1u;
-	rec->holding[MODBUS_POINT_HR_THRESHOLD] = 100u;
-	rec->holding[MODBUS_POINT_HR_RETRY_MS] = 500u;
-	rec->holding[MODBUS_POINT_HR_USER_WORD] = 0x1234u;
-	rec->coils = BIT(MODBUS_POINT_COIL_ENABLE);
-	rec->checksum = calc_checksum(rec);
+	ARG_UNUSED(db);
+	k_mutex_unlock(&g_db_lock);
 }
 
-static bool is_record_valid(const struct modbus_points_record *rec)
+static int fdb_to_errno(fdb_err_t err)
 {
-	/* 先验头信息，再验 checksum，避免误判 */
-	if (rec->magic != MODBUS_POINTS_MAGIC || rec->version != MODBUS_POINTS_VER) {
-		return false;
-	}
-
-	return rec->checksum == calc_checksum(rec);
-}
-
-static int load_record(struct modbus_points_record *rec)
-{
-	/* 固定从分区起始地址读取一条记录 */
-	int ret = flashdb_port_read(0, rec, sizeof(*rec));
-
-	if (ret != 0) {
-		return ret;
-	}
-
-	if (!is_record_valid(rec)) {
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-static int save_record(const struct modbus_points_record *rec)
-{
-	uint8_t write_buf[128];
-	size_t align = flashdb_port_align();
-	size_t erase_size = flashdb_port_erase_size();
-	size_t wr_len;
-	int ret;
-
-	if (align == 0U) {
-		align = 1U;
-	}
-	if (erase_size == 0U) {
-		return -ENODEV;
-	}
-
-	/* 写入长度必须按 flash 写对齐补齐到边界 */
-	wr_len = ROUND_UP(sizeof(*rec), align);
-	if (wr_len > sizeof(write_buf)) {
-		return -ENOMEM;
-	}
-
-	memset(write_buf, 0xFF, sizeof(write_buf));
-	memcpy(write_buf, rec, sizeof(*rec));
-
-	/* NOR Flash 写入前必须先擦除扇区 */
-	ret = flashdb_port_erase(0, erase_size);
-	if (ret != 0) {
-		return ret;
-	}
-
-	return flashdb_port_write(0, write_buf, wr_len);
-}
-
-static int load_or_reset_record(struct modbus_points_record *rec)
-{
-	int ret = load_record(rec);
-
-	if (ret == 0) {
+	switch (err) {
+	case FDB_NO_ERR:
 		return 0;
+	case FDB_PART_NOT_FOUND:
+		return -ENOENT;
+	case FDB_SAVED_FULL:
+		return -ENOSPC;
+	case FDB_ERASE_ERR:
+	case FDB_READ_ERR:
+	case FDB_WRITE_ERR:
+		return -EIO;
+	case FDB_KV_NAME_ERR:
+	case FDB_KV_NAME_EXIST:
+		return -EINVAL;
+	case FDB_INIT_FAILED:
+	default:
+		return -EFAULT;
 	}
-
-	/* 首次启动或数据损坏：自动恢复默认值并回写 */
-	set_defaults(rec);
-	ret = save_record(rec);
-	if (ret == 0) {
-		printk("Modbus points DB initialized with defaults\n");
-	}
-
-	return ret;
 }
 
 int modbus_points_db_init(void)
 {
-	struct modbus_points_record rec;
-	int ret;
+	fdb_err_t ret;
 
-	k_mutex_init(&points_db_lock);
-
-	/* 仅在 init 成功后允许外部读写接口工作 */
-	k_mutex_lock(&points_db_lock, K_FOREVER);
-	ret = load_or_reset_record(&rec);
-	if (ret == 0) {
-		points_db_ready = true;
+	if (g_db_ready) {
+		return 0;
 	}
-	k_mutex_unlock(&points_db_lock);
 
-	return ret;
+	k_mutex_init(&g_db_lock);
+
+	/* 设置 FlashDB 内部锁，保证多上下文访问安全 */
+	fdb_kvdb_control(&g_modbus_kvdb, FDB_KVDB_CTRL_SET_LOCK, (void *)kvdb_lock);
+	fdb_kvdb_control(&g_modbus_kvdb, FDB_KVDB_CTRL_SET_UNLOCK, (void *)kvdb_unlock);
+
+	/*
+	 * path 使用 "flashdb"，对应 FAL 分区名（由 fal_stub_zephyr.c 提供）。
+	 * 初始化后，默认 KV 会自动落盘。
+	 */
+	ret = fdb_kvdb_init(&g_modbus_kvdb, "modbus", "flashdb", &g_default_kv, NULL);
+	if (ret != FDB_NO_ERR) {
+		printk("fdb_kvdb_init failed: %d\n", (int)ret);
+		return fdb_to_errno(ret);
+	}
+
+	g_db_ready = true;
+	return 0;
 }
 
 int modbus_points_db_get_holding(uint16_t addr, uint16_t *value)
 {
-	struct modbus_points_record rec;
-	int ret;
+	struct fdb_blob blob;
+	size_t rd_len;
+	uint16_t tmp = 0u;
 
-	if (!points_db_ready) {
+	if (!g_db_ready) {
 		return -EACCES;
+	}
+	if (value == NULL) {
+		return -EINVAL;
 	}
 	if (addr >= MODBUS_POINT_HR_COUNT) {
 		return -ENOTSUP;
 	}
 
-	/* 每次读取都从 flash 取最新值，确保掉电恢复后可见 */
-	k_mutex_lock(&points_db_lock, K_FOREVER);
-	ret = load_or_reset_record(&rec);
-	if (ret == 0) {
-		*value = rec.holding[addr];
+	rd_len = fdb_kv_get_blob(&g_modbus_kvdb, g_holding_keys[addr],
+				 fdb_blob_make(&blob, &tmp, sizeof(tmp)));
+	if (rd_len != sizeof(tmp)) {
+		return -ENOENT;
 	}
-	k_mutex_unlock(&points_db_lock);
 
-	return ret;
+	*value = tmp;
+	return 0;
 }
 
 int modbus_points_db_set_holding(uint16_t addr, uint16_t value)
 {
-	struct modbus_points_record rec;
-	int ret;
+	struct fdb_blob blob;
+	fdb_err_t ret;
 
-	if (!points_db_ready) {
+	if (!g_db_ready) {
 		return -EACCES;
 	}
 	if (addr >= MODBUS_POINT_HR_COUNT) {
 		return -ENOTSUP;
 	}
 
-	/* 典型读改写流程：读记录 -> 改字段 -> 重算校验 -> 回写 */
-	k_mutex_lock(&points_db_lock, K_FOREVER);
-	ret = load_or_reset_record(&rec);
-	if (ret == 0) {
-		rec.holding[addr] = value;
-		rec.checksum = calc_checksum(&rec);
-		ret = save_record(&rec);
-	}
-	k_mutex_unlock(&points_db_lock);
-
-	return ret;
+	ret = fdb_kv_set_blob(&g_modbus_kvdb, g_holding_keys[addr],
+			      fdb_blob_make(&blob, &value, sizeof(value)));
+	return fdb_to_errno(ret);
 }
 
 int modbus_points_db_get_coil(uint16_t addr, bool *state)
 {
-	struct modbus_points_record rec;
-	int ret;
+	struct fdb_blob blob;
+	size_t rd_len;
+	uint8_t tmp = 0u;
 
-	if (!points_db_ready) {
+	if (!g_db_ready) {
 		return -EACCES;
+	}
+	if (state == NULL) {
+		return -EINVAL;
 	}
 	if (addr >= MODBUS_POINT_COIL_COUNT) {
 		return -ENOTSUP;
 	}
 
-	/* coil 使用位图存储，按 bit 位取值 */
-	k_mutex_lock(&points_db_lock, K_FOREVER);
-	ret = load_or_reset_record(&rec);
-	if (ret == 0) {
-		*state = (rec.coils & BIT(addr)) != 0U;
+	rd_len = fdb_kv_get_blob(&g_modbus_kvdb, g_coil_keys[addr],
+				 fdb_blob_make(&blob, &tmp, sizeof(tmp)));
+	if (rd_len != sizeof(tmp)) {
+		return -ENOENT;
 	}
-	k_mutex_unlock(&points_db_lock);
 
-	return ret;
+	*state = (tmp != 0u);
+	return 0;
 }
 
 int modbus_points_db_set_coil(uint16_t addr, bool state)
 {
-	struct modbus_points_record rec;
-	int ret;
+	struct fdb_blob blob;
+	fdb_err_t ret;
+	uint8_t value = state ? 1u : 0u;
 
-	if (!points_db_ready) {
+	if (!g_db_ready) {
 		return -EACCES;
 	}
 	if (addr >= MODBUS_POINT_COIL_COUNT) {
 		return -ENOTSUP;
 	}
 
-	/* 修改对应 bit 后整体回写记录 */
-	k_mutex_lock(&points_db_lock, K_FOREVER);
-	ret = load_or_reset_record(&rec);
-	if (ret == 0) {
-		if (state) {
-			rec.coils |= BIT(addr);
-		} else {
-			rec.coils &= (uint8_t)(~BIT(addr));
-		}
-		rec.checksum = calc_checksum(&rec);
-		ret = save_record(&rec);
-	}
-	k_mutex_unlock(&points_db_lock);
-
-	return ret;
+	ret = fdb_kv_set_blob(&g_modbus_kvdb, g_coil_keys[addr],
+			      fdb_blob_make(&blob, &value, sizeof(value)));
+	return fdb_to_errno(ret);
 }

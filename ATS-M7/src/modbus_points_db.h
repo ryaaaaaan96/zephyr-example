@@ -16,17 +16,14 @@
 #define MODBUS_POINT_COIL_SAVE_EN    1U
 #define MODBUS_POINT_COIL_COUNT      2U
 
-/* 初始化持久化存储：
- * - 尝试从 flashdb 分区加载记录
- * - 若记录非法，则写入默认值
- */
+/* 初始化 FlashDB KV 数据库 */
 int modbus_points_db_init(void);
 
-/* 读取/写入 Holding Register（从持久化数据中访问） */
+/* 读取/写入 Holding Register（底层映射为 FlashDB KV） */
 int modbus_points_db_get_holding(uint16_t addr, uint16_t *value);
 int modbus_points_db_set_holding(uint16_t addr, uint16_t value);
 
-/* 读取/写入 Coil（从持久化数据中访问） */
+/* 读取/写入 Coil（底层映射为 FlashDB KV） */
 int modbus_points_db_get_coil(uint16_t addr, bool *state);
 int modbus_points_db_set_coil(uint16_t addr, bool state);
 

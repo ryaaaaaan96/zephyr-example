@@ -9,13 +9,19 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
 project(app LANGUAGES C)
 
-target_include_directories(app PRIVATE src)
+target_include_directories(app PRIVATE
+                src
+                ../lib/FlashDB/inc)
 
 target_sources(app PRIVATE
                 src/main.c
                 src/modbus_service.c
                 src/modbus_points_db.c
-                src/flashdb_port_zephyr.c)
+                src/flashdb_port_zephyr.c
+                src/fal_stub_zephyr.c
+                ../lib/FlashDB/src/fdb.c
+                ../lib/FlashDB/src/fdb_utils.c
+                ../lib/FlashDB/src/fdb_kvdb.c)
 
 # The code below locates the git index file for this repository and adds it as a dependency for
 # the application VERSION file so that if the repo has a new commit added, even if no files in
